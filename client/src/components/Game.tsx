@@ -70,69 +70,38 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     initializeGrid(gridSize);
     
     // Generate random obstacles across the map to create an interesting environment
-    // But ensure paths remain accessible by using a more careful approach
     const { addObstacle } = useGridStore.getState();
     
-    // Define important locations (ensure these stay obstacle-free)
-    const importantLocations = [
-      { x: 60, y: 60 }, // Player start (center)
-      // Add key merchant positions
-      { x: 20, y: 20 },
-      { x: 20, y: 100 },
-      { x: 100, y: 20 },
-      { x: 100, y: 100 },
-      { x: 60, y: 20 },
-      { x: 60, y: 100 },
-      { x: 20, y: 60 },
-      { x: 100, y: 60 },
-      // Add guard positions
-      { x: 15, y: 15 },
-      { x: 85, y: 85 },
-      { x: 15, y: 85 },
-      { x: 85, y: 15 }
-    ];
-    
-    // Function to check if a position is at least minDistance away from all important locations
-    const isSafeToPlaceObstacle = (x: number, y: number, minDistance: number = 5) => {
-      return importantLocations.every(loc => {
-        const distance = Math.sqrt(Math.pow(loc.x - x, 2) + Math.pow(loc.y - y, 2));
-        return distance >= minDistance;
-      });
-    };
-    
-    // Create smaller, more dispersed clusters of obstacles for more interesting terrain
-    for (let cluster = 0; cluster < 20; cluster++) {
+    // Create clusters of obstacles for more interesting terrain
+    // Forest clusters
+    for (let cluster = 0; cluster < 15; cluster++) {
       const clusterCenterX = 10 + Math.floor(Math.random() * (gridSize.width - 20));
       const clusterCenterY = 10 + Math.floor(Math.random() * (gridSize.height - 20));
+      const clusterSize = 5 + Math.floor(Math.random() * 15); // 5-20 obstacles per cluster
       
-      // Only create clusters away from important locations
-      if (isSafeToPlaceObstacle(clusterCenterX, clusterCenterY, 15)) {
-        const clusterSize = 3 + Math.floor(Math.random() * 5); // 3-7 obstacles per cluster (smaller)
+      // Generate obstacles around the cluster center
+      for (let i = 0; i < clusterSize; i++) {
+        const offsetX = Math.floor(Math.random() * 7) - 3; // -3 to 3
+        const offsetY = Math.floor(Math.random() * 7) - 3; // -3 to 3
+        const obstacleX = Math.max(0, Math.min(gridSize.width - 1, clusterCenterX + offsetX));
+        const obstacleY = Math.max(0, Math.min(gridSize.height - 1, clusterCenterY + offsetY));
         
-        // Generate obstacles around the cluster center
-        for (let i = 0; i < clusterSize; i++) {
-          const offsetX = Math.floor(Math.random() * 5) - 2; // -2 to 2 (smaller spread)
-          const offsetY = Math.floor(Math.random() * 5) - 2; // -2 to 2 (smaller spread)
-          const obstacleX = Math.max(0, Math.min(gridSize.width - 1, clusterCenterX + offsetX));
-          const obstacleY = Math.max(0, Math.min(gridSize.height - 1, clusterCenterY + offsetY));
-          
-          // Extra safety check for individual obstacle
-          if (isSafeToPlaceObstacle(obstacleX, obstacleY, 5)) {
-            addObstacle({ x: obstacleX, y: obstacleY });
-          }
+        // Avoid placing obstacles at the player start position
+        if (obstacleX !== 60 || obstacleY !== 60) {
+          addObstacle({ x: obstacleX, y: obstacleY });
         }
       }
     }
     
-    // Add some individual randomly scattered obstacles (fewer of them)
-    for (let i = 0; i < 100; i++) {
+    // Add some individual randomly scattered obstacles
+    for (let i = 0; i < 200; i++) {
       const obstacleX = 5 + Math.floor(Math.random() * (gridSize.width - 10));
       const obstacleY = 5 + Math.floor(Math.random() * (gridSize.height - 10));
       
-      // Only place if safe
-      if (isSafeToPlaceObstacle(obstacleX, obstacleY)) {
-        // Lower probability to make it more sparse
-        if (Math.random() < 0.4) {
+      // Avoid placing obstacles at the player start position
+      if (obstacleX !== 60 || obstacleY !== 60) {
+        // Add with a probability to create more sparse individual obstacles
+        if (Math.random() < 0.7) {
           addObstacle({ x: obstacleX, y: obstacleY });
         }
       }
@@ -147,43 +116,14 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     // Create 300 random NPCs of different AI types spread across the larger map
     const npcData: Partial<NPC>[] = [];
     
-    // Helper function to check if a position is valid (not an obstacle)
-    const isValidPosition = (x: number, y: number): boolean => {
-      // Check if position is within grid bounds
-      if (x < 0 || x >= gridSize.width || y < 0 || y >= gridSize.height) {
-        return false;
-      }
-      
-      // Check if position is an obstacle
-      return !obstacles.some(o => o.x === x && o.y === y);
-    };
-    
     // Define some specific group formations first
-    // Helper function to get a valid position near a center point
-    const getValidPositionNear = (centerX: number, centerY: number, radius: number = 10) => {
-      let attempts = 0;
-      let positionValid = false;
-      let x = centerX, y = centerY;
-      
-      while (!positionValid && attempts < 20) {
-        const offsetX = Math.floor(Math.random() * radius) - Math.floor(radius / 2);
-        const offsetY = Math.floor(Math.random() * radius) - Math.floor(radius / 2);
-        
-        x = Math.max(0, Math.min(gridSize.width - 1, centerX + offsetX));
-        y = Math.max(0, Math.min(gridSize.height - 1, centerY + offsetY));
-        
-        positionValid = isValidPosition(x, y);
-        attempts++;
-      }
-      
-      return { x, y };
-    };
-    
     // Guards Group 1 (North)
     for (let i = 0; i < 10; i++) {
-      const position = getValidPositionNear(15, 15, 10);
       npcData.push({ 
-        position, 
+        position: { 
+          x: 15 + Math.floor(Math.random() * 10), 
+          y: 15 + Math.floor(Math.random() * 10) 
+        }, 
         type: AIType.GUARD, 
         groupId: 1 
       });
@@ -191,9 +131,11 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     
     // Guards Group 2 (South)
     for (let i = 0; i < 10; i++) {
-      const position = getValidPositionNear(85, 85, 10);
       npcData.push({ 
-        position, 
+        position: { 
+          x: 85 + Math.floor(Math.random() * 10), 
+          y: 85 + Math.floor(Math.random() * 10) 
+        }, 
         type: AIType.GUARD, 
         groupId: 2 
       });
@@ -201,9 +143,11 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     
     // Guards Group 3 (East)
     for (let i = 0; i < 10; i++) {
-      const position = getValidPositionNear(85, 15, 10);
       npcData.push({ 
-        position, 
+        position: { 
+          x: 85 + Math.floor(Math.random() * 10), 
+          y: 15 + Math.floor(Math.random() * 10) 
+        }, 
         type: AIType.GUARD, 
         groupId: 3 
       });
@@ -211,9 +155,11 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     
     // Guards Group 4 (West)
     for (let i = 0; i < 10; i++) {
-      const position = getValidPositionNear(15, 85, 10);
       npcData.push({ 
-        position, 
+        position: { 
+          x: 15 + Math.floor(Math.random() * 10), 
+          y: 85 + Math.floor(Math.random() * 10) 
+        }, 
         type: AIType.GUARD, 
         groupId: 4 
       });
@@ -236,15 +182,8 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       { x: 80, y: 80 },
     ];
     
-    // Validate merchant positions and only add those in valid positions
     merchantLocations.forEach(pos => {
-      if (isValidPosition(pos.x, pos.y)) {
-        npcData.push({ position: pos, type: AIType.MERCHANT });
-      } else {
-        // Try to find a nearby valid position
-        const validPos = getValidPositionNear(pos.x, pos.y, 5);
-        npcData.push({ position: validPos, type: AIType.MERCHANT });
-      }
+      npcData.push({ position: pos, type: AIType.MERCHANT });
     });
     
     // Fill the rest with random entities to reach 300 total
@@ -253,28 +192,13 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     
     for (let i = 0; i < remainingCount; i++) {
       const randomType = aiTypes[Math.floor(Math.random() * aiTypes.length)];
+      const randomX = 5 + Math.floor(Math.random() * (gridSize.width - 10));
+      const randomY = 5 + Math.floor(Math.random() * (gridSize.height - 10));
       
-      // Try to find a valid position
-      let randomX = 0, randomY = 0;
-      let attempts = 0;
-      let positionValid = false;
-      
-      // Try up to 10 times to find a valid position
-      while (!positionValid && attempts < 10) {
-        randomX = 5 + Math.floor(Math.random() * (gridSize.width - 10));
-        randomY = 5 + Math.floor(Math.random() * (gridSize.height - 10));
-        
-        positionValid = isValidPosition(randomX, randomY);
-        attempts++;
-      }
-      
-      // Only add the entity if we found a valid position
-      if (positionValid) {
-        npcData.push({
-          position: { x: randomX, y: randomY },
-          type: randomType
-        });
-      }
+      npcData.push({
+        position: { x: randomX, y: randomY },
+        type: randomType
+      });
     }
     
     // Initialize all NPCs
