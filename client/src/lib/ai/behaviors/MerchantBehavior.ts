@@ -27,14 +27,19 @@ const isValidPosition = (pos: GridPosition): boolean => {
   const y = Math.round(pos.y);
   
   try {
-    // Check grid bounds and walkability
-    return (
-      x >= 0 && 
-      x < grid[0].length &&
-      y >= 0 && 
-      y < grid.length &&
-      grid[y][x] // Check if the tile is walkable
-    );
+    // First check if position is within grid bounds
+    if (
+      x < 0 || 
+      x >= grid[0].length ||
+      y < 0 || 
+      y >= grid.length
+    ) {
+      return false;
+    }
+    
+    // Then explicitly check if the tile is walkable (must be exactly true)
+    // This ensures we're not accidentally pathing through obstacles
+    return grid[y][x] === true;
   } catch (error) {
     console.error("Error checking valid position:", error);
     return false;
@@ -473,22 +478,33 @@ export class MerchantBehavior implements StateMachine {
   
   /**
    * Find a valid walkable position near the given position
+   * This function uses an expanding search pattern to find the closest walkable tile
    */
   private findValidPositionNear(pos: GridPosition): GridPosition | null {
+    // Get grid data
+    const { grid, gridSize } = useGridStore.getState();
+    if (!grid || grid.length === 0) {
+      console.log(`Cannot find valid position - grid data not available`);
+      return null;
+    }
+    
     // Check if the input position itself is valid and finite
     if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
       console.log(`Cannot find valid position near invalid position: ${JSON.stringify(pos)}`);
       
       // Use a fallback position in the center of the map
-      const { width, height } = useGridStore.getState().gridSize;
-      pos = { x: Math.floor(width / 2), y: Math.floor(height / 2) };
+      pos = { x: Math.floor(gridSize.width / 2), y: Math.floor(gridSize.height / 2) };
     }
     
-    const { width, height } = useGridStore.getState().gridSize;
-    const searchRadius = 5; // How far to search for a valid position
+    const width = gridSize.width;
+    const height = gridSize.height;
+    
+    // Increase search radius to better handle large obstacles
+    const searchRadius = 10; // How far to search for a valid position
     
     try {
       // Round the starting position to ensure we're working with integers
+      // and clamp to grid boundaries
       const startX = Math.round(Math.min(width - 1, Math.max(0, pos.x)));
       const startY = Math.round(Math.min(height - 1, Math.max(0, pos.y)));
       
@@ -497,12 +513,41 @@ export class MerchantBehavior implements StateMachine {
         return { x: startX, y: startY };
       }
       
-      // Try positions in increasing distance from the target
+      console.log(`Position (${startX}, ${startY}) is not walkable, searching nearby...`);
+      
+      // Try positions in increasing distance from the target using a spiral pattern
+      // This ensures we find the closest valid position
       for (let radius = 1; radius <= searchRadius; radius++) {
+        // First check cardinal directions at this radius (north, east, south, west)
+        // These are often more practical paths than diagonals
+        const cardinalDirections = [
+          { x: 0, y: -radius },  // North
+          { x: radius, y: 0 },   // East
+          { x: 0, y: radius },   // South
+          { x: -radius, y: 0 }   // West
+        ];
+        
+        for (const dir of cardinalDirections) {
+          const testX = Math.round(startX + dir.x);
+          const testY = Math.round(startY + dir.y);
+          
+          // Make sure we're within grid bounds
+          if (testX < 0 || testX >= width || testY < 0 || testY >= height) continue;
+          
+          // Check if this position is valid/walkable
+          if (isValidPosition({ x: testX, y: testY })) {
+            console.log(`Found walkable position at (${testX}, ${testY}), offset (${dir.x}, ${dir.y}) from original`);
+            return { x: testX, y: testY };
+          }
+        }
+        
+        // Then check the entire perimeter at this radius
         for (let offsetX = -radius; offsetX <= radius; offsetX++) {
           for (let offsetY = -radius; offsetY <= radius; offsetY++) {
-            // Skip positions that aren't on the radius boundary
-            if (Math.abs(offsetX) !== radius && Math.abs(offsetY) !== radius) continue;
+            // Skip positions that aren't on the radius boundary and skip cardinal directions we already checked
+            if ((Math.abs(offsetX) !== radius && Math.abs(offsetY) !== radius) || 
+                (offsetX === 0 && Math.abs(offsetY) === radius) ||
+                (offsetY === 0 && Math.abs(offsetX) === radius)) continue;
             
             const testX = Math.round(startX + offsetX);
             const testY = Math.round(startY + offsetY);
@@ -512,6 +557,7 @@ export class MerchantBehavior implements StateMachine {
             
             // Check if this position is valid/walkable
             if (isValidPosition({ x: testX, y: testY })) {
+              console.log(`Found walkable position at (${testX}, ${testY}), offset (${offsetX}, ${offsetY}) from original`);
               return { x: testX, y: testY };
             }
           }
@@ -519,6 +565,7 @@ export class MerchantBehavior implements StateMachine {
       }
       
       // If we can't find a valid position nearby, try a last resort - the center of the map
+      // This ensures NPCs don't get completely stuck in unwalkable areas
       const centerX = Math.floor(width / 2);
       const centerY = Math.floor(height / 2);
       
@@ -527,7 +574,20 @@ export class MerchantBehavior implements StateMachine {
         return { x: centerX, y: centerY };
       }
       
+      // Try random walkable positions across the map
+      console.log(`Trying random positions as a last resort...`);
+      for (let attempts = 0; attempts < 10; attempts++) {
+        const randomX = Math.floor(Math.random() * width);
+        const randomY = Math.floor(Math.random() * height);
+        
+        if (isValidPosition({ x: randomX, y: randomY })) {
+          console.log(`Found random walkable position at (${randomX}, ${randomY})`);
+          return { x: randomX, y: randomY };
+        }
+      }
+      
       // Couldn't find any valid position
+      console.log(`Failed to find ANY walkable position for NPC ${this.npc.id}!`);
       return null;
     } catch (error) {
       console.error("Error finding valid position:", error);

@@ -150,20 +150,71 @@ function App() {
     };
   }, []);
 
-  // Initialize audio
+  // Initialize audio with error handling
   useEffect(() => {
-    const bgMusic = new Audio("/sounds/background.mp3");
-    bgMusic.loop = true;
-    bgMusic.volume = 0.3;
-    setBackgroundMusic(bgMusic);
-
-    const hitSound = new Audio("/sounds/hit.mp3");
-    const successSound = new Audio("/sounds/success.mp3");
-    useAudio.getState().setHitSound(hitSound);
-    useAudio.getState().setSuccessSound(successSound);
-
-    // Automatically show the game once loaded
-    setShowGame(true);
+    try {
+      // Function to safely load an audio file with error handling
+      const loadAudio = (src: string): Promise<HTMLAudioElement> => {
+        return new Promise((resolve, reject) => {
+          const audio = new Audio();
+          
+          // Add error handling
+          audio.onerror = (e) => {
+            console.error(`Error loading audio file ${src}:`, e);
+            reject(e);
+          };
+          
+          // Add load handling
+          audio.onloadeddata = () => {
+            console.log(`Audio loaded successfully: ${src}`);
+            resolve(audio);
+          };
+          
+          // Set the source and begin loading
+          audio.src = src;
+          audio.load();
+        });
+      };
+      
+      // Load background music
+      loadAudio("/sounds/background.mp3").then(bgMusic => {
+        bgMusic.loop = true;
+        bgMusic.volume = 0.3;
+        setBackgroundMusic(bgMusic);
+      }).catch(error => {
+        console.warn("Could not load background music:", error);
+        // Create a silent audio element as a fallback
+        const silentAudio = new Audio();
+        setBackgroundMusic(silentAudio);
+      });
+      
+      // Load hit sound
+      loadAudio("/sounds/hit.mp3").then(hitSound => {
+        useAudio.getState().setHitSound(hitSound);
+      }).catch(error => {
+        console.warn("Could not load hit sound:", error);
+        // Create a silent audio element as a fallback
+        const silentAudio = new Audio();
+        useAudio.getState().setHitSound(silentAudio);
+      });
+      
+      // Load success sound
+      loadAudio("/sounds/success.mp3").then(successSound => {
+        useAudio.getState().setSuccessSound(successSound);
+      }).catch(error => {
+        console.warn("Could not load success sound:", error);
+        // Create a silent audio element as a fallback
+        const silentAudio = new Audio();
+        useAudio.getState().setSuccessSound(silentAudio);
+      });
+      
+      // Show the game even if audio fails to load
+      setShowGame(true);
+    } catch (error) {
+      console.error("Error initializing audio:", error);
+      // Ensure game is shown even if audio setup fails completely
+      setShowGame(true);
+    }
   }, [setBackgroundMusic]);
 
   return (

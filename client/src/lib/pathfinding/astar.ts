@@ -30,17 +30,29 @@ const isValidPosition = (pos: GridPosition, grid: boolean[][]): boolean => {
   const x = Math.round(pos.x);
   const y = Math.round(pos.y);
   
-  // Check grid bounds and walkability
-  return (
-    grid &&
-    grid.length > 0 &&
-    grid[0].length > 0 &&
-    x >= 0 && 
-    x < grid[0].length &&
-    y >= 0 && 
-    y < grid.length &&
-    grid[y][x] // Check if the tile is walkable
-  );
+  try {
+    // Check grid bounds
+    if (
+      !grid || 
+      grid.length === 0 || 
+      grid[0].length === 0 ||
+      x < 0 || 
+      x >= grid[0].length ||
+      y < 0 || 
+      y >= grid.length
+    ) {
+      return false;
+    }
+    
+    // Explicitly check walkability
+    // This ensures we're not accidentally considering an obstacle as walkable
+    const isWalkable = grid[y][x] === true;
+    
+    return isWalkable;
+  } catch (error) {
+    console.error("Error in isValidPosition:", error);
+    return false;
+  }
 };
 
 // Reconstruct path from cameFrom map
@@ -63,49 +75,75 @@ const reconstructPath = (
 
 // Helper to get valid neighbors for a position
 const getNeighbors = (position: GridPosition, grid: boolean[][]): GridPosition[] => {
-  const neighbors: GridPosition[] = [];
-  // Round positions to handle decimal values
-  const x = Math.round(position.x);
-  const y = Math.round(position.y);
-  
-  const directions = [
-    { x: 0, y: -1 }, // North
-    { x: 1, y: 0 },  // East
-    { x: 0, y: 1 },  // South
-    { x: -1, y: 0 }, // West
-    // Include diagonals for smoother paths
-    { x: 1, y: -1 }, // Northeast
-    { x: 1, y: 1 },  // Southeast
-    { x: -1, y: 1 }, // Southwest
-    { x: -1, y: -1 } // Northwest
-  ];
-  
-  for (const dir of directions) {
-    const newX = x + dir.x;
-    const newY = y + dir.y;
+  try {
+    const neighbors: GridPosition[] = [];
+    // Round positions to handle decimal values
+    const x = Math.round(position.x);
+    const y = Math.round(position.y);
     
-    // Check if the position is within bounds and walkable
+    // Verify current position is valid
     if (
-      newX >= 0 && newX < grid[0].length &&
-      newY >= 0 && newY < grid.length &&
-      grid[newY][newX] // Walkable
+      !grid || 
+      grid.length === 0 || 
+      grid[0].length === 0 ||
+      x < 0 || 
+      x >= grid[0].length ||
+      y < 0 || 
+      y >= grid.length
     ) {
-      // For diagonals, make sure both orthogonal neighbors are walkable
+      return []; // Return empty array if current position is invalid
+    }
+    
+    // Define the possible movement directions
+    const directions = [
+      { x: 0, y: -1 }, // North
+      { x: 1, y: 0 },  // East
+      { x: 0, y: 1 },  // South
+      { x: -1, y: 0 }, // West
+      // Include diagonals for smoother paths
+      { x: 1, y: -1 }, // Northeast
+      { x: 1, y: 1 },  // Southeast
+      { x: -1, y: 1 }, // Southwest
+      { x: -1, y: -1 } // Northwest
+    ];
+    
+    for (const dir of directions) {
+      const newX = x + dir.x;
+      const newY = y + dir.y;
+      
+      // Skip neighbors outside grid bounds
+      if (
+        newX < 0 || newX >= grid[0].length ||
+        newY < 0 || newY >= grid.length
+      ) {
+        continue;
+      }
+      
+      // Skip unwalkable tiles - explicitly check for true
+      if (grid[newY][newX] !== true) {
+        continue;
+      }
+      
+      // For diagonals, ensure we can move through corner (avoid cutting corners)
       if (Math.abs(dir.x) === 1 && Math.abs(dir.y) === 1) {
         // Check if both adjacent orthogonal cells are walkable
-        const canMoveHorizontally = grid[y][newX];
-        const canMoveVertically = grid[newY][x];
+        const canMoveHorizontally = grid[y][newX] === true;
+        const canMoveVertically = grid[newY][x] === true;
         
         if (!canMoveHorizontally || !canMoveVertically) {
           continue; // Skip this diagonal if we can't move through adjacent cells
         }
       }
       
+      // This is a valid neighbor
       neighbors.push({ x: newX, y: newY });
     }
+    
+    return neighbors;
+  } catch (error) {
+    console.error("Error in getNeighbors:", error);
+    return [];
   }
-  
-  return neighbors;
 };
 
 // A* pathfinding algorithm implementation
@@ -126,19 +164,40 @@ export const findPath = (
     
     // Verify valid start and goal
     if (!grid || grid.length === 0) {
-      console.log("Grid not initialized");
+      console.log(`Pathfinding error for ${entityId}: Grid not initialized`);
       return [];
     }
     
-    if (!isValidPosition(start, grid)) {
-      console.log(`Invalid start position: ${JSON.stringify(start)}`);
+    // Round and clamp positions to grid boundaries to avoid errors
+    const roundedStart = {
+      x: Math.min(grid[0].length - 1, Math.max(0, Math.round(start.x))),
+      y: Math.min(grid.length - 1, Math.max(0, Math.round(start.y)))
+    };
+    
+    const roundedGoal = {
+      x: Math.min(grid[0].length - 1, Math.max(0, Math.round(goal.x))),
+      y: Math.min(grid.length - 1, Math.max(0, Math.round(goal.y)))
+    };
+    
+    // Check if positions are walkable
+    if (!isValidPosition(roundedStart, grid)) {
+      console.log(`Pathfinding error for ${entityId}: Start position at (${roundedStart.x}, ${roundedStart.y}) is not walkable`);
+      // Return the path with just the goal if start is not walkable but goal is
+      if (isValidPosition(roundedGoal, grid)) {
+        console.log(`Returning direct path to walkable goal for ${entityId}`);
+        return [roundedGoal];
+      }
       return [];
     }
     
-    if (!isValidPosition(goal, grid)) {
-      console.log(`Invalid goal position: ${JSON.stringify(goal)}`);
-      return [];
+    if (!isValidPosition(roundedGoal, grid)) {
+      console.log(`Pathfinding error for ${entityId}: Goal position at (${roundedGoal.x}, ${roundedGoal.y}) is not walkable`);
+      return [roundedStart]; // Return current position if goal is not walkable
     }
+    
+    // Use the validated positions
+    start = roundedStart;
+    goal = roundedGoal;
     
     // If the start and goal are the same (using rounded values), return just the start
     if (Math.round(start.x) === Math.round(goal.x) && Math.round(start.y) === Math.round(goal.y)) return [start];
