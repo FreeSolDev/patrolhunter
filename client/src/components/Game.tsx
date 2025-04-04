@@ -244,28 +244,30 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     }
     
     // Draw obstacles
-    obstacles.forEach(obstacle => {
-      const [obstacleX, obstacleY] = gridToScreen(obstacle);
-      
-      ctx.fillStyle = COLORS.UNWALKABLE_TILE;
-      ctx.fillRect(obstacleX, obstacleY, TILE_SIZE, TILE_SIZE);
-      
-      // Add some 3D effect to obstacles
-      ctx.fillStyle = '#333333';
-      ctx.fillRect(
-        obstacleX, 
-        obstacleY, 
-        TILE_SIZE, 
-        5
-      );
-      
-      ctx.fillRect(
-        obstacleX + TILE_SIZE - 5, 
-        obstacleY, 
-        5, 
-        TILE_SIZE
-      );
-    });
+    if (obstacles && obstacles.length > 0) {
+      obstacles.forEach(obstaclePos => {
+        const [obstacleX, obstacleY] = gridToScreen(obstaclePos);
+        
+        ctx.fillStyle = COLORS.UNWALKABLE_TILE;
+        ctx.fillRect(obstacleX, obstacleY, TILE_SIZE, TILE_SIZE);
+        
+        // Add some 3D effect to obstacles
+        ctx.fillStyle = '#333333';
+        ctx.fillRect(
+          obstacleX, 
+          obstacleY, 
+          TILE_SIZE, 
+          5
+        );
+        
+        ctx.fillRect(
+          obstacleX + TILE_SIZE - 5, 
+          obstacleY, 
+          5, 
+          TILE_SIZE
+        );
+      });
+    }
     
     // Draw player
     if (player) {

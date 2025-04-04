@@ -169,12 +169,12 @@ export class SurvivorBehavior implements StateMachine {
       // Set target position behind the obstacle relative to player
       const player = useEntityStore.getState().player;
       if (player) {
-        const obstacleToPosX = obstacle.x - player.position.x;
-        const obstacleToPosY = obstacle.y - player.position.y;
+        const obstacleToPosX = nearestObstacle.x - player.position.x;
+        const obstacleToPosY = nearestObstacle.y - player.position.y;
         
         // Position behind the obstacle
-        const hidePosX = obstacle.x + Math.sign(obstacleToPosX) * 1.5;
-        const hidePosY = obstacle.y + Math.sign(obstacleToPosY) * 1.5;
+        const hidePosX = nearestObstacle.x + Math.sign(obstacleToPosX) * 1.5;
+        const hidePosY = nearestObstacle.y + Math.sign(obstacleToPosY) * 1.5;
         
         // Clamp to grid boundaries
         const { width, height } = useGridStore.getState().gridSize;
