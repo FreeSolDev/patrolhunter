@@ -65,39 +65,47 @@ const Game = ({ canvasRef, controls }: GameProps) => {
   useEffect(() => {
     console.log("Initializing game...");
     
-    // Set grid size and initialize
-    const gridSize = { width: 20, height: 20 };
+    // Set grid size and initialize (expanded by 3x)
+    const gridSize = { width: 60, height: 60 };
     initializeGrid(gridSize);
     
-    // Create player at position [10, 10]
+    // Create player at the center of the map
     createPlayer({ 
-      position: { x: 10, y: 10 }, 
+      position: { x: 30, y: 30 }, 
       isMonster: false 
     });
     
-    // Create various NPCs with different AI types and positions
+    // Create various NPCs with different AI types and positions spread across the larger map
     initializeNPCs([
       // Create some guards (Type 1)
-      { position: { x: 2, y: 2 }, type: AIType.GUARD, groupId: 1 },
-      { position: { x: 3, y: 2 }, type: AIType.GUARD, groupId: 1 },
-      { position: { x: 2, y: 3 }, type: AIType.GUARD, groupId: 1 },
+      { position: { x: 5, y: 5 }, type: AIType.GUARD, groupId: 1 },
+      { position: { x: 7, y: 5 }, type: AIType.GUARD, groupId: 1 },
+      { position: { x: 5, y: 7 }, type: AIType.GUARD, groupId: 1 },
+      { position: { x: 55, y: 55 }, type: AIType.GUARD, groupId: 2 },
+      { position: { x: 53, y: 55 }, type: AIType.GUARD, groupId: 2 },
+      { position: { x: 55, y: 53 }, type: AIType.GUARD, groupId: 2 },
       
       // Create some hunters (Type 2)
-      { position: { x: 17, y: 17 }, type: AIType.HUNTER },
-      { position: { x: 17, y: 2 }, type: AIType.HUNTER },
+      { position: { x: 50, y: 50 }, type: AIType.HUNTER },
+      { position: { x: 50, y: 10 }, type: AIType.HUNTER },
+      { position: { x: 10, y: 50 }, type: AIType.HUNTER },
       
       // Create some survivors (Type 3)
-      { position: { x: 5, y: 15 }, type: AIType.SURVIVOR },
-      { position: { x: 15, y: 5 }, type: AIType.SURVIVOR },
-      { position: { x: 10, y: 15 }, type: AIType.SURVIVOR },
+      { position: { x: 15, y: 45 }, type: AIType.SURVIVOR },
+      { position: { x: 45, y: 15 }, type: AIType.SURVIVOR },
+      { position: { x: 25, y: 40 }, type: AIType.SURVIVOR },
+      { position: { x: 40, y: 25 }, type: AIType.SURVIVOR },
       
       // Create some life preserver ring attackers (Type 4)
-      { position: { x: 18, y: 10 }, type: AIType.PRESERVER },
-      { position: { x: 7, y: 18 }, type: AIType.PRESERVER },
+      { position: { x: 55, y: 30 }, type: AIType.PRESERVER },
+      { position: { x: 30, y: 55 }, type: AIType.PRESERVER },
+      { position: { x: 10, y: 30 }, type: AIType.PRESERVER },
       
-      // Create merchants (Type 5) at various locations
-      { position: { x: 5, y: 5 }, type: AIType.MERCHANT },
+      // Create merchants (Type 5) at various locations across the map
       { position: { x: 15, y: 15 }, type: AIType.MERCHANT },
+      { position: { x: 45, y: 45 }, type: AIType.MERCHANT },
+      { position: { x: 15, y: 45 }, type: AIType.MERCHANT },
+      { position: { x: 45, y: 15 }, type: AIType.MERCHANT },
     ]);
     
     // Start the game
@@ -129,21 +137,35 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     ctx.fillStyle = '#87CEEB'; // Sky blue
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     
-    // Calculate camera/viewport for centering
+    // Calculate camera/viewport that follows the player
     const viewportWidth = ctx.canvas.width;
     const viewportHeight = ctx.canvas.height;
     const gridWidthPx = gridSize.width * TILE_SIZE;
     const gridHeightPx = gridSize.height * TILE_SIZE;
     
-    // Center the grid in the viewport
-    const offsetX = Math.max(0, (viewportWidth - gridWidthPx) / 2);
-    const offsetY = Math.max(0, (viewportHeight - gridHeightPx) / 2);
+    // Calculate camera position centered on player
+    let cameraX = 0;
+    let cameraY = 0;
+    
+    if (player) {
+      // Get player position (use pixel position if available)
+      const playerPosX = player.pixelPosition ? player.pixelPosition.x : player.position.x * TILE_SIZE;
+      const playerPosY = player.pixelPosition ? player.pixelPosition.y : player.position.y * TILE_SIZE;
+      
+      // Center camera on player
+      cameraX = playerPosX - viewportWidth / 2 + TILE_SIZE / 2;
+      cameraY = playerPosY - viewportHeight / 2 + TILE_SIZE / 2;
+      
+      // Clamp camera to grid boundaries
+      cameraX = Math.max(0, Math.min(cameraX, gridWidthPx - viewportWidth));
+      cameraY = Math.max(0, Math.min(cameraY, gridHeightPx - viewportHeight));
+    }
     
     // Helper function to convert grid coordinates to screen coordinates
     const gridToScreen = (pos: GridPosition): [number, number] => {
       return [
-        offsetX + pos.x * TILE_SIZE,
-        offsetY + pos.y * TILE_SIZE
+        pos.x * TILE_SIZE - cameraX,
+        pos.y * TILE_SIZE - cameraY
       ];
     };
     
@@ -151,10 +173,26 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     ctx.lineWidth = 1;
     ctx.strokeStyle = COLORS.GRID_LINE;
     
-    // Draw grid cells
-    for (let y = 0; y < gridSize.height; y++) {
-      for (let x = 0; x < gridSize.width; x++) {
+    // Calculate visible tile range
+    const visibleStartX = Math.floor(cameraX / TILE_SIZE);
+    const visibleStartY = Math.floor(cameraY / TILE_SIZE);
+    const visibleEndX = Math.min(gridSize.width - 1, Math.ceil((cameraX + viewportWidth) / TILE_SIZE));
+    const visibleEndY = Math.min(gridSize.height - 1, Math.ceil((cameraY + viewportHeight) / TILE_SIZE));
+    
+    // Draw only visible grid cells (optimization)
+    for (let y = visibleStartY; y <= visibleEndY; y++) {
+      for (let x = visibleStartX; x <= visibleEndX; x++) {
         const [screenX, screenY] = gridToScreen({ x, y });
+        
+        // Skip tiles outside of viewport
+        if (
+          screenX + TILE_SIZE < 0 || 
+          screenY + TILE_SIZE < 0 || 
+          screenX > viewportWidth || 
+          screenY > viewportHeight
+        ) {
+          continue;
+        }
         
         // Determine if this position is walkable
         const walkable = grid[y][x];
@@ -254,10 +292,30 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       });
     }
     
-    // Draw obstacles
+    // Draw obstacles (only those in viewport)
     if (obstacles && obstacles.length > 0) {
-      obstacles.forEach(obstaclePos => {
+      // Filter obstacles to only those in the visible area
+      const visibleObstacles = obstacles.filter(obstaclePos => {
+        return (
+          obstaclePos.x >= visibleStartX && 
+          obstaclePos.x <= visibleEndX && 
+          obstaclePos.y >= visibleStartY && 
+          obstaclePos.y <= visibleEndY
+        );
+      });
+      
+      visibleObstacles.forEach(obstaclePos => {
         const [obstacleX, obstacleY] = gridToScreen(obstaclePos);
+        
+        // Skip obstacles outside of viewport
+        if (
+          obstacleX + TILE_SIZE < 0 || 
+          obstacleY + TILE_SIZE < 0 || 
+          obstacleX > viewportWidth || 
+          obstacleY > viewportHeight
+        ) {
+          return;
+        }
         
         ctx.fillStyle = COLORS.UNWALKABLE_TILE;
         ctx.fillRect(obstacleX, obstacleY, TILE_SIZE, TILE_SIZE);
@@ -286,8 +344,9 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       
       // Use pixel position for smooth movement if available
       if (player.pixelPosition) {
-        playerX = offsetX + player.pixelPosition.x;
-        playerY = offsetY + player.pixelPosition.y;
+        // Convert pixel position to screen coordinates with camera offset
+        playerX = player.pixelPosition.x - cameraX;
+        playerY = player.pixelPosition.y - cameraY;
       } else {
         // Fallback to grid position if pixel position isn't available
         const [gridX, gridY] = gridToScreen(player.position);
@@ -401,20 +460,45 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       }
     }
     
-    // Draw NPCs
-    npcs.forEach(npc => {
+    // Draw NPCs (only those within or near the viewport)
+    const visibleNPCs = npcs.filter(npc => {
+      // Get NPC position (grid or pixel)
+      const npcX = npc.pixelPosition ? npc.pixelPosition.x / TILE_SIZE : npc.position.x;
+      const npcY = npc.pixelPosition ? npc.pixelPosition.y / TILE_SIZE : npc.position.y;
+      
+      // Add a buffer zone around viewport for smoother experience
+      const buffer = 3;
+      return (
+        npcX >= visibleStartX - buffer && 
+        npcX <= visibleEndX + buffer && 
+        npcY >= visibleStartY - buffer && 
+        npcY <= visibleEndY + buffer
+      );
+    });
+    
+    visibleNPCs.forEach(npc => {
       // Use pixel position for smooth movement instead of grid position
       let screenX, screenY;
       
       if (npc.pixelPosition) {
-        // Convert pixel position to screen coordinates
-        screenX = offsetX + npc.pixelPosition.x;
-        screenY = offsetY + npc.pixelPosition.y;
+        // Convert pixel position to screen coordinates with camera offset
+        screenX = npc.pixelPosition.x - cameraX;
+        screenY = npc.pixelPosition.y - cameraY;
       } else {
         // Fallback to grid position if pixel position isn't available
         const [gridX, gridY] = gridToScreen(npc.position);
         screenX = gridX;
         screenY = gridY;
+      }
+      
+      // Skip NPCs outside of viewport
+      if (
+        screenX + TILE_SIZE < 0 || 
+        screenY + TILE_SIZE < 0 || 
+        screenX > viewportWidth || 
+        screenY > viewportHeight
+      ) {
+        return;
       }
       
       // Determine color based on NPC type
