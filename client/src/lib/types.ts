@@ -15,6 +15,10 @@ export interface GridSize {
 // Player entity
 export interface Player {
   position: GridPosition;
+  pixelPosition?: {
+    x: number;
+    y: number;
+  };
   isMonster: boolean;
   speed: number;
 }
@@ -23,11 +27,17 @@ export interface Player {
 export interface NPC {
   id: string;
   position: GridPosition;
+  pixelPosition: {
+    x: number;
+    y: number;
+  };
   type: AIType;
   targetPosition: GridPosition;
   speed: number;
   groupId?: number; // For coordinated behaviors
   currentState: string;
+  isMoving: boolean;
+  currentPathIndex?: number;
 }
 
 // Pathfinding visualization data

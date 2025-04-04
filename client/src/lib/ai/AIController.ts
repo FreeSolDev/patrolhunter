@@ -99,36 +99,64 @@ export class AIController {
   // Follow the current path
   private followPath(deltaTime: number): void {
     if (this.currentPath.length <= 1 || this.pathIndex >= this.currentPath.length) {
+      this.npc.isMoving = false;
       return;
     }
     
-    // Get the next position to move towards
+    this.npc.isMoving = true;
+    this.npc.currentPathIndex = this.pathIndex;
+    
+    // Calculate pixel positions for smooth movement
+    const TILE_SIZE = 30; // Same as in Game.tsx
+    
+    // Get the next position to move towards in grid coordinates
     const nextPosition = this.currentPath[this.pathIndex];
     
-    // Calculate direction to next position
-    const dirX = nextPosition.x - this.npc.position.x;
-    const dirY = nextPosition.y - this.npc.position.y;
+    // Convert grid position to pixel position
+    const nextPixelX = nextPosition.x * TILE_SIZE;
+    const nextPixelY = nextPosition.y * TILE_SIZE;
     
-    // Calculate distance to next position
+    // Calculate direction to next position in pixels
+    const dirX = nextPixelX - this.npc.pixelPosition.x;
+    const dirY = nextPixelY - this.npc.pixelPosition.y;
+    
+    // Calculate distance to next position in pixels
     const distToNext = Math.sqrt(dirX * dirX + dirY * dirY);
     
-    // Check if we've reached the next position
-    if (distToNext < 0.1) {
+    // Check if we've reached the next position (within a small threshold)
+    if (distToNext < 2) {
+      // Update the grid position to match exactly
+      this.npc.position.x = nextPosition.x;
+      this.npc.position.y = nextPosition.y;
+      
+      // Update the pixel position to match exactly
+      this.npc.pixelPosition.x = nextPixelX;
+      this.npc.pixelPosition.y = nextPixelY;
+      
+      // Move to next path node
       this.pathIndex++;
       
       // If we've reached the end of the path, stop
       if (this.pathIndex >= this.currentPath.length) {
+        this.npc.isMoving = false;
         return;
       }
+    } else {
+      // Normalize direction
+      const normalizedDirX = dirX / distToNext;
+      const normalizedDirY = dirY / distToNext;
+      
+      // Pixel speed (pixels per second)
+      const pixelSpeed = this.npc.speed * TILE_SIZE;
+      
+      // Move towards next position at NPC's movement speed
+      this.npc.pixelPosition.x += normalizedDirX * pixelSpeed * deltaTime;
+      this.npc.pixelPosition.y += normalizedDirY * pixelSpeed * deltaTime;
+      
+      // Update grid position based on pixel position
+      this.npc.position.x = this.npc.pixelPosition.x / TILE_SIZE;
+      this.npc.position.y = this.npc.pixelPosition.y / TILE_SIZE;
     }
-    
-    // Normalize direction
-    const normalizedDirX = dirX / distToNext;
-    const normalizedDirY = dirY / distToNext;
-    
-    // Move towards next position at NPC's movement speed
-    this.npc.position.x += normalizedDirX * this.npc.speed * deltaTime;
-    this.npc.position.y += normalizedDirY * this.npc.speed * deltaTime;
   }
   
   // Get the current state name for UI display

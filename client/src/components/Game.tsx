@@ -269,7 +269,18 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     
     // Draw player
     if (player) {
-      const [playerX, playerY] = gridToScreen(player.position);
+      let playerX, playerY;
+      
+      // Use pixel position for smooth movement if available
+      if (player.pixelPosition) {
+        playerX = offsetX + player.pixelPosition.x;
+        playerY = offsetY + player.pixelPosition.y;
+      } else {
+        // Fallback to grid position if pixel position isn't available
+        const [gridX, gridY] = gridToScreen(player.position);
+        playerX = gridX;
+        playerY = gridY;
+      }
       
       // Draw player based on current form
       if (player.isMonster) {
@@ -298,6 +309,21 @@ const Game = ({ canvasRef, controls }: GameProps) => {
         );
         ctx.fill();
         ctx.globalAlpha = 1.0;
+        
+        // Add a pulsing animation for monster form
+        ctx.strokeStyle = "#FF6347";
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.5 + Math.sin(Date.now() / 150) * 0.5;
+        ctx.beginPath();
+        ctx.arc(
+          playerX + TILE_SIZE / 2, 
+          playerY + TILE_SIZE / 2, 
+          TILE_SIZE / 2 + 5, 
+          0, 
+          Math.PI * 2
+        );
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
       } else {
         // Human form (square)
         ctx.fillStyle = COLORS.PLAYER_HUMAN;
@@ -319,11 +345,64 @@ const Game = ({ canvasRef, controls }: GameProps) => {
         );
         ctx.globalAlpha = 1.0;
       }
+      
+      // Draw a trail effect behind the player for more fluid motion
+      const keys = Object.entries(controls).filter(([key, value]) => value && ["up", "down", "left", "right"].includes(key));
+      if (keys.length > 0) {
+        ctx.fillStyle = player.isMonster ? COLORS.PLAYER_MONSTER : COLORS.PLAYER_HUMAN;
+        ctx.globalAlpha = 0.3;
+        const trailLength = 3;
+        
+        for (let i = 1; i <= trailLength; i++) {
+          let trailX = playerX;
+          let trailY = playerY;
+          
+          // Position the trail based on movement direction
+          if (controls.up) trailY += i * 5;
+          if (controls.down) trailY -= i * 5;
+          if (controls.left) trailX += i * 5;
+          if (controls.right) trailX -= i * 5;
+          
+          // Draw trail segment
+          if (player.isMonster) {
+            ctx.beginPath();
+            ctx.arc(
+              trailX + TILE_SIZE / 2, 
+              trailY + TILE_SIZE / 2, 
+              (TILE_SIZE / 2 - 2) * (1 - i / (trailLength + 1)), 
+              0, 
+              Math.PI * 2
+            );
+            ctx.fill();
+          } else {
+            const size = TILE_SIZE * (1 - i / (trailLength + 1));
+            ctx.fillRect(
+              trailX + (TILE_SIZE - size) / 2, 
+              trailY + (TILE_SIZE - size) / 2, 
+              size, 
+              size
+            );
+          }
+        }
+        ctx.globalAlpha = 1.0;
+      }
     }
     
     // Draw NPCs
     npcs.forEach(npc => {
-      const [npcX, npcY] = gridToScreen(npc.position);
+      // Use pixel position for smooth movement instead of grid position
+      let screenX, screenY;
+      
+      if (npc.pixelPosition) {
+        // Convert pixel position to screen coordinates
+        screenX = offsetX + npc.pixelPosition.x;
+        screenY = offsetY + npc.pixelPosition.y;
+      } else {
+        // Fallback to grid position if pixel position isn't available
+        const [gridX, gridY] = gridToScreen(npc.position);
+        screenX = gridX;
+        screenY = gridY;
+      }
       
       // Determine color based on NPC type
       let color: string;
@@ -344,11 +423,26 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       // Draw NPC body
       ctx.fillStyle = color;
       ctx.fillRect(
-        npcX + 3, 
-        npcY + 3, 
+        screenX + 3, 
+        screenY + 3, 
         TILE_SIZE - 6, 
         TILE_SIZE - 6
       );
+      
+      // Add an animation effect if the NPC is moving
+      if (npc.isMoving) {
+        // Add a subtle pulsing effect
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.7 + Math.sin(Date.now() / 200) * 0.3; // Pulsing opacity
+        ctx.strokeRect(
+          screenX + 1,
+          screenY + 1,
+          TILE_SIZE - 2,
+          TILE_SIZE - 2
+        );
+        ctx.globalAlpha = 1.0;
+      }
       
       // Add state text above NPC
       ctx.fillStyle = COLORS.TEXT;
@@ -356,8 +450,8 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       ctx.font = "10px Arial";
       ctx.fillText(
         npc.currentState,
-        npcX + TILE_SIZE / 2,
-        npcY - 5
+        screenX + TILE_SIZE / 2,
+        screenY - 5
       );
     });
   };

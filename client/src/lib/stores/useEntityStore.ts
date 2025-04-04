@@ -24,26 +24,50 @@ export const useEntityStore = create<EntityState>((set, get) => ({
   npcs: [],
   npcControllers: new Map(),
   
-  createPlayer: (playerData) => set({
-    player: {
-      position: playerData.position || { x: 0, y: 0 },
-      isMonster: playerData.isMonster || false,
-      speed: 5 // Default speed
-    }
-  }),
+  createPlayer: (playerData) => {
+    const position = playerData.position || { x: 0, y: 0 };
+    const TILE_SIZE = 30; // Same as in Game.tsx
+    
+    set({
+      player: {
+        position: position,
+        pixelPosition: {
+          x: position.x * TILE_SIZE,
+          y: position.y * TILE_SIZE
+        },
+        isMonster: playerData.isMonster || false,
+        speed: 5 // Default speed
+      }
+    });
+  },
   
   updatePlayer: (controls, deltaTime) => set((state) => {
     if (!state.player) return {};
     
     const { up, down, left, right, transform } = controls;
     const player = { ...state.player };
-    const moveDistance = player.speed * deltaTime;
+    const TILE_SIZE = 30; // Same as in Game.tsx
+    
+    // Use pixel-based movement for player too
+    if (!player.pixelPosition) {
+      player.pixelPosition = {
+        x: player.position.x * TILE_SIZE,
+        y: player.position.y * TILE_SIZE
+      };
+    }
+    
+    // Pixel speed (pixels per second)
+    const pixelSpeed = player.speed * TILE_SIZE * deltaTime;
     
     // Movement
-    if (up) player.position.y -= moveDistance;
-    if (down) player.position.y += moveDistance;
-    if (left) player.position.x -= moveDistance;
-    if (right) player.position.x += moveDistance;
+    if (up) player.pixelPosition.y -= pixelSpeed;
+    if (down) player.pixelPosition.y += pixelSpeed;
+    if (left) player.pixelPosition.x -= pixelSpeed;
+    if (right) player.pixelPosition.x += pixelSpeed;
+    
+    // Update grid position based on pixel position
+    player.position.x = player.pixelPosition.x / TILE_SIZE;
+    player.position.y = player.pixelPosition.y / TILE_SIZE;
     
     // Transform (toggle between human and monster)
     if (transform) {
@@ -55,10 +79,17 @@ export const useEntityStore = create<EntityState>((set, get) => ({
       }
     }
     
-    // Clamp to grid boundaries
+    // Clamp to grid boundaries (in pixels)
     const { width, height } = useGridStore.getState().gridSize;
-    player.position.x = Math.max(0, Math.min(width - 1, player.position.x));
-    player.position.y = Math.max(0, Math.min(height - 1, player.position.y));
+    const maxPixelX = (width - 1) * TILE_SIZE;
+    const maxPixelY = (height - 1) * TILE_SIZE;
+    
+    player.pixelPosition.x = Math.max(0, Math.min(maxPixelX, player.pixelPosition.x));
+    player.pixelPosition.y = Math.max(0, Math.min(maxPixelY, player.pixelPosition.y));
+    
+    // Update grid position after clamping
+    player.position.x = player.pixelPosition.x / TILE_SIZE;
+    player.position.y = player.pixelPosition.y / TILE_SIZE;
     
     return { player };
   }),
@@ -69,14 +100,21 @@ export const useEntityStore = create<EntityState>((set, get) => ({
     
     for (const npcData of npcDataArray) {
       const id = nanoid();
+      const position = npcData.position || { x: 0, y: 0 };
       const npc: NPC = {
         id,
-        position: npcData.position || { x: 0, y: 0 },
+        position: position,
+        pixelPosition: {
+          x: position.x * 30, // Convert to pixel position (30 = TILE_SIZE)
+          y: position.y * 30  // Convert to pixel position
+        },
         type: npcData.type || AIType.SURVIVOR,
         targetPosition: npcData.position || { x: 0, y: 0 },
         speed: 3, // Default speed
         groupId: npcData.groupId,
-        currentState: "Initializing"
+        currentState: "Initializing",
+        isMoving: false,
+        currentPathIndex: 0
       };
       
       npcs.push(npc);
