@@ -65,144 +65,48 @@ const Game = ({ canvasRef, controls }: GameProps) => {
   useEffect(() => {
     console.log("Initializing game...");
     
-    // Set grid size and initialize (expanded to an even larger size)
-    const gridSize = { width: 120, height: 120 };
+    // Set grid size and initialize (expanded by 3x)
+    const gridSize = { width: 60, height: 60 };
     initializeGrid(gridSize);
-    
-    // Generate random obstacles across the map to create an interesting environment
-    const { addObstacle } = useGridStore.getState();
-    
-    // Create clusters of obstacles for more interesting terrain
-    // Forest clusters
-    for (let cluster = 0; cluster < 15; cluster++) {
-      const clusterCenterX = 10 + Math.floor(Math.random() * (gridSize.width - 20));
-      const clusterCenterY = 10 + Math.floor(Math.random() * (gridSize.height - 20));
-      const clusterSize = 5 + Math.floor(Math.random() * 15); // 5-20 obstacles per cluster
-      
-      // Generate obstacles around the cluster center
-      for (let i = 0; i < clusterSize; i++) {
-        const offsetX = Math.floor(Math.random() * 7) - 3; // -3 to 3
-        const offsetY = Math.floor(Math.random() * 7) - 3; // -3 to 3
-        const obstacleX = Math.max(0, Math.min(gridSize.width - 1, clusterCenterX + offsetX));
-        const obstacleY = Math.max(0, Math.min(gridSize.height - 1, clusterCenterY + offsetY));
-        
-        // Avoid placing obstacles at the player start position
-        if (obstacleX !== 60 || obstacleY !== 60) {
-          addObstacle({ x: obstacleX, y: obstacleY });
-        }
-      }
-    }
-    
-    // Add some individual randomly scattered obstacles
-    for (let i = 0; i < 200; i++) {
-      const obstacleX = 5 + Math.floor(Math.random() * (gridSize.width - 10));
-      const obstacleY = 5 + Math.floor(Math.random() * (gridSize.height - 10));
-      
-      // Avoid placing obstacles at the player start position
-      if (obstacleX !== 60 || obstacleY !== 60) {
-        // Add with a probability to create more sparse individual obstacles
-        if (Math.random() < 0.7) {
-          addObstacle({ x: obstacleX, y: obstacleY });
-        }
-      }
-    }
     
     // Create player at the center of the map
     createPlayer({ 
-      position: { x: 60, y: 60 }, 
+      position: { x: 30, y: 30 }, 
       isMonster: false 
     });
     
-    // Create 300 random NPCs of different AI types spread across the larger map
-    const npcData: Partial<NPC>[] = [];
-    
-    // Define some specific group formations first
-    // Guards Group 1 (North)
-    for (let i = 0; i < 10; i++) {
-      npcData.push({ 
-        position: { 
-          x: 15 + Math.floor(Math.random() * 10), 
-          y: 15 + Math.floor(Math.random() * 10) 
-        }, 
-        type: AIType.GUARD, 
-        groupId: 1 
-      });
-    }
-    
-    // Guards Group 2 (South)
-    for (let i = 0; i < 10; i++) {
-      npcData.push({ 
-        position: { 
-          x: 85 + Math.floor(Math.random() * 10), 
-          y: 85 + Math.floor(Math.random() * 10) 
-        }, 
-        type: AIType.GUARD, 
-        groupId: 2 
-      });
-    }
-    
-    // Guards Group 3 (East)
-    for (let i = 0; i < 10; i++) {
-      npcData.push({ 
-        position: { 
-          x: 85 + Math.floor(Math.random() * 10), 
-          y: 15 + Math.floor(Math.random() * 10) 
-        }, 
-        type: AIType.GUARD, 
-        groupId: 3 
-      });
-    }
-    
-    // Guards Group 4 (West)
-    for (let i = 0; i < 10; i++) {
-      npcData.push({ 
-        position: { 
-          x: 15 + Math.floor(Math.random() * 10), 
-          y: 85 + Math.floor(Math.random() * 10) 
-        }, 
-        type: AIType.GUARD, 
-        groupId: 4 
-      });
-    }
-    
-    // Add merchants at strategic locations
-    const merchantLocations = [
-      { x: 20, y: 20 },
-      { x: 20, y: 100 },
-      { x: 100, y: 20 },
-      { x: 100, y: 100 },
-      { x: 60, y: 20 },
-      { x: 60, y: 100 },
-      { x: 20, y: 60 },
-      { x: 100, y: 60 },
-      { x: 60, y: 60 },
-      { x: 40, y: 40 },
-      { x: 40, y: 80 },
-      { x: 80, y: 40 },
-      { x: 80, y: 80 },
-    ];
-    
-    merchantLocations.forEach(pos => {
-      npcData.push({ position: pos, type: AIType.MERCHANT });
-    });
-    
-    // Fill the rest with random entities to reach 300 total
-    const aiTypes = [AIType.HUNTER, AIType.SURVIVOR, AIType.PRESERVER];
-    const remainingCount = 300 - npcData.length;
-    
-    for (let i = 0; i < remainingCount; i++) {
-      const randomType = aiTypes[Math.floor(Math.random() * aiTypes.length)];
-      const randomX = 5 + Math.floor(Math.random() * (gridSize.width - 10));
-      const randomY = 5 + Math.floor(Math.random() * (gridSize.height - 10));
+    // Create various NPCs with different AI types and positions spread across the larger map
+    initializeNPCs([
+      // Create some guards (Type 1)
+      { position: { x: 5, y: 5 }, type: AIType.GUARD, groupId: 1 },
+      { position: { x: 7, y: 5 }, type: AIType.GUARD, groupId: 1 },
+      { position: { x: 5, y: 7 }, type: AIType.GUARD, groupId: 1 },
+      { position: { x: 55, y: 55 }, type: AIType.GUARD, groupId: 2 },
+      { position: { x: 53, y: 55 }, type: AIType.GUARD, groupId: 2 },
+      { position: { x: 55, y: 53 }, type: AIType.GUARD, groupId: 2 },
       
-      npcData.push({
-        position: { x: randomX, y: randomY },
-        type: randomType
-      });
-    }
-    
-    // Initialize all NPCs
-    initializeNPCs(npcData);
+      // Create some hunters (Type 2)
+      { position: { x: 50, y: 50 }, type: AIType.HUNTER },
+      { position: { x: 50, y: 10 }, type: AIType.HUNTER },
+      { position: { x: 10, y: 50 }, type: AIType.HUNTER },
+      
+      // Create some survivors (Type 3)
+      { position: { x: 15, y: 45 }, type: AIType.SURVIVOR },
+      { position: { x: 45, y: 15 }, type: AIType.SURVIVOR },
+      { position: { x: 25, y: 40 }, type: AIType.SURVIVOR },
+      { position: { x: 40, y: 25 }, type: AIType.SURVIVOR },
+      
+      // Create some life preserver ring attackers (Type 4)
+      { position: { x: 55, y: 30 }, type: AIType.PRESERVER },
+      { position: { x: 30, y: 55 }, type: AIType.PRESERVER },
+      { position: { x: 10, y: 30 }, type: AIType.PRESERVER },
+      
+      // Create merchants (Type 5) at various locations across the map
+      { position: { x: 15, y: 15 }, type: AIType.MERCHANT },
+      { position: { x: 45, y: 45 }, type: AIType.MERCHANT },
+      { position: { x: 15, y: 45 }, type: AIType.MERCHANT },
+      { position: { x: 45, y: 15 }, type: AIType.MERCHANT },
+    ]);
     
     // Start the game
     start();
