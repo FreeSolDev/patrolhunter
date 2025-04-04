@@ -3,6 +3,7 @@ import { GuardState } from "../AITypes";
 import { GridPosition, NPC } from "../../types";
 import { useEntityStore } from "../../stores/useEntityStore";
 import { useGridStore } from "../../stores/useGridStore";
+import { useAudio } from "../../stores/useAudio";
 
 export class GuardBehavior implements StateMachine {
   private npc: NPC;
@@ -208,8 +209,8 @@ export class GuardBehavior implements StateMachine {
     console.log(`Guard ${this.npc.id} is attacking player!`);
     
     // Play hit sound effect
-    const { playHitSound } = useAudio.getState();
-    playHitSound();
+    const { playHit } = useAudio.getState();
+    playHit();
   }
   
   // Calculate distance to a position
@@ -225,6 +226,3 @@ export class GuardBehavior implements StateMachine {
     return this.currentState;
   }
 }
-
-// Import for sound effect
-import { useAudio } from "../../stores/useAudio";

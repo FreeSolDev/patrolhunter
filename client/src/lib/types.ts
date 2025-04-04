@@ -44,4 +44,5 @@ export interface Controls {
   left: boolean;
   right: boolean;
   transform: boolean;
+  debug: boolean;
 }

@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useEntityStore } from '../lib/stores/useEntityStore';
-import { useKeyboardControls } from '@react-three/drei';
 import { AIType } from '../lib/ai/AITypes';
 
-const GameUI = () => {
+interface GameUIProps {
+  debugMode?: boolean;
+}
+
+const GameUI = ({ debugMode = false }: GameUIProps) => {
   const { player, npcs } = useEntityStore();
-  const debugMode = useKeyboardControls(state => state.debug);
   const [stats, setStats] = useState({
     guards: 0,
     hunters: 0,
@@ -26,8 +28,8 @@ const GameUI = () => {
   }, [npcs]);
 
   return (
-    <div className="absolute top-0 left-0 p-4 text-white">
-      <div className="bg-black bg-opacity-70 p-4 rounded-lg">
+    <div className="absolute top-0 left-0 p-4 text-white z-10">
+      <div className="bg-black bg-opacity-70 p-4 rounded-lg max-w-xs">
         <h2 className="text-xl mb-2">Game Info</h2>
         
         {/* Player Status */}
@@ -48,9 +50,16 @@ const GameUI = () => {
         {/* Controls */}
         <div className="mt-4">
           <h3 className="font-bold">Controls</h3>
-          <p>WASD/Arrows: Move</p>
-          <p>T: Transform (Human/Monster)</p>
-          <p>B: Toggle Debug Mode</p>
+          <div className="md:block hidden">
+            <p>WASD/Arrows: Move</p>
+            <p>T: Transform (Human/Monster)</p>
+            <p>B: Toggle Debug Mode</p>
+          </div>
+          <div className="md:hidden">
+            <p>D-Pad: Move</p>
+            <p>Transform Button: Change form</p>
+            <p>Debug Button: Toggle visualization</p>
+          </div>
         </div>
         
         {/* Debug mode status */}

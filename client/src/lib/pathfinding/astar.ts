@@ -13,6 +13,39 @@ const euclideanDistance = (a: GridPosition, b: GridPosition): number => {
   return Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
 };
 
+// Helper to check if a position is valid within the grid
+const isValidPosition = (pos: GridPosition, grid: boolean[][]): boolean => {
+  return (
+    pos &&
+    grid &&
+    grid.length > 0 &&
+    grid[0].length > 0 &&
+    pos.x >= 0 && 
+    pos.x < grid[0].length &&
+    pos.y >= 0 && 
+    pos.y < grid.length &&
+    grid[pos.y][pos.x] // Check if the tile is walkable
+  );
+};
+
+// Reconstruct path from cameFrom map
+const reconstructPath = (
+  cameFrom: Map<string, GridPosition>,
+  current: GridPosition
+): GridPosition[] => {
+  const path = [current];
+  const posKey = (pos: GridPosition) => `${pos.x},${pos.y}`;
+  let currentKey = posKey(current);
+  
+  while (cameFrom.has(currentKey)) {
+    const prev = cameFrom.get(currentKey)!;
+    path.unshift(prev);
+    currentKey = posKey(prev);
+  }
+  
+  return path;
+};
+
 // Helper to get valid neighbors for a position
 const getNeighbors = (position: GridPosition, grid: boolean[][]): GridPosition[] => {
   const neighbors: GridPosition[] = [];
@@ -64,152 +97,142 @@ export const findPath = (
   entityId: string,
   color: string = "#FFFFFF"
 ): GridPosition[] => {
-  const { grid } = useGridStore.getState();
-  const { 
-    setOpenSet, 
-    setClosedSet, 
-    addCurrentPath, 
-    clearPathData 
-  } = usePathfinding.getState();
-  
-  // Verify valid start and goal
-  if (!grid || grid.length === 0) return [];
-  if (!isValidPosition(start, grid) || !isValidPosition(goal, grid)) return [];
-  
-  // If the start and goal are the same, return just the start
-  if (start.x === goal.x && start.y === goal.y) return [start];
-  
-  // Initialize data structures
-  const openSet = new PriorityQueue<GridPosition>();
-  const closedSet = new Set<string>();
-  const cameFrom = new Map<string, GridPosition>();
-  
-  // Cost maps
-  const gScore = new Map<string, number>(); // Cost from start to current node
-  const fScore = new Map<string, number>(); // Estimated cost from start to goal through current node
-  
-  // Initialize start node
-  const posKey = (pos: GridPosition) => `${pos.x},${pos.y}`;
-  const startKey = posKey(start);
-  
-  gScore.set(startKey, 0);
-  fScore.set(startKey, manhattanDistance(start, goal));
-  openSet.enqueue(start, fScore.get(startKey) || Infinity);
-  
-  // Visualization sets
-  const openSetVisual: GridPosition[] = [];
-  const closedSetVisual: GridPosition[] = [];
-  
-  // Clear previous visualization data for this entity
-  clearPathData(entityId);
-  
-  // Main A* loop
-  while (!openSet.isEmpty()) {
-    const current = openSet.dequeue()!;
-    const currentKey = posKey(current);
+  try {
+    const { grid } = useGridStore.getState();
+    const { 
+      setOpenSet, 
+      setClosedSet, 
+      addCurrentPath, 
+      clearPathData 
+    } = usePathfinding.getState();
     
-    // Update visualization sets
-    openSetVisual.push({ ...current });
-    setOpenSet(openSetVisual);
-    
-    // Check if we've reached the goal
-    if (current.x === goal.x && current.y === goal.y) {
-      // Reconstruct the path
-      const path = reconstructPath(cameFrom, current);
-      
-      // Add this path to the visualization
-      addCurrentPath({
-        entityId,
-        path,
-        color
-      });
-      
-      // Update final visualization state
-      setClosedSet(closedSetVisual);
-      
-      return path;
+    // Verify valid start and goal
+    if (!grid || grid.length === 0) {
+      console.log("Grid not initialized");
+      return [];
     }
     
-    // Move current node from open set to closed set
-    closedSet.add(currentKey);
-    closedSetVisual.push({ ...current });
+    if (!isValidPosition(start, grid)) {
+      console.log(`Invalid start position: ${JSON.stringify(start)}`);
+      return [];
+    }
     
-    // Get all walkable neighbors
-    const neighbors = getNeighbors(current, grid);
+    if (!isValidPosition(goal, grid)) {
+      console.log(`Invalid goal position: ${JSON.stringify(goal)}`);
+      return [];
+    }
     
-    for (const neighbor of neighbors) {
-      const neighborKey = posKey(neighbor);
+    // If the start and goal are the same, return just the start
+    if (start.x === goal.x && start.y === goal.y) return [start];
+    
+    // Initialize data structures
+    const openSet = new PriorityQueue<GridPosition>();
+    const closedSet = new Set<string>();
+    const cameFrom = new Map<string, GridPosition>();
+    
+    // Cost maps
+    const gScore = new Map<string, number>(); // Cost from start to current node
+    const fScore = new Map<string, number>(); // Estimated cost from start to goal through current node
+    
+    // Initialize start node
+    const posKey = (pos: GridPosition) => `${pos.x},${pos.y}`;
+    const startKey = posKey(start);
+    
+    gScore.set(startKey, 0);
+    fScore.set(startKey, manhattanDistance(start, goal));
+    openSet.enqueue(start, fScore.get(startKey) || Infinity);
+    
+    // Visualization sets
+    const openSetVisual: GridPosition[] = [];
+    const closedSetVisual: GridPosition[] = [];
+    
+    // Clear previous visualization data for this entity
+    clearPathData(entityId);
+    
+    // Main A* loop
+    while (!openSet.isEmpty()) {
+      const current = openSet.dequeue()!;
+      const currentKey = posKey(current);
       
-      // Skip if already evaluated
-      if (closedSet.has(neighborKey)) continue;
+      // Update visualization sets
+      openSetVisual.push({ ...current });
+      setOpenSet(openSetVisual);
       
-      // Calculate tentative gScore (cost to reach neighbor)
-      // Use 1.4 for diagonal movement cost instead of 1.0
-      const isDiagonal = 
-        Math.abs(neighbor.x - current.x) === 1 && 
-        Math.abs(neighbor.y - current.y) === 1;
-      
-      const moveCost = isDiagonal ? 1.4 : 1.0;
-      const tentativeGScore = (gScore.get(currentKey) || Infinity) + moveCost;
-      
-      // Check if the node is not in open set or if we found a better path
-      const inOpenSet = openSet.contains(neighborKey);
-      if (!inOpenSet || tentativeGScore < (gScore.get(neighborKey) || Infinity)) {
-        // Update path and scores
-        cameFrom.set(neighborKey, current);
-        gScore.set(neighborKey, tentativeGScore);
-        fScore.set(neighborKey, tentativeGScore + manhattanDistance(neighbor, goal));
+      // Check if we've reached the goal
+      if (current.x === goal.x && current.y === goal.y) {
+        // Reconstruct the path
+        const path = reconstructPath(cameFrom, current);
         
-        // Add to open set if not already there
-        if (!inOpenSet) {
-          openSet.enqueue(neighbor, fScore.get(neighborKey) || Infinity);
-          openSetVisual.push({ ...neighbor });
-        }
+        // Add this path to the visualization
+        addCurrentPath({
+          entityId,
+          path,
+          color
+        });
         
-        // Reconstruct current path for visualization
-        if (inOpenSet) {
-          const currentVisPath = reconstructPath(cameFrom, neighbor);
-          addCurrentPath({
-            entityId,
-            path: currentVisPath,
-            color
-          });
+        // Update final visualization state
+        setClosedSet(closedSetVisual);
+        
+        return path;
+      }
+      
+      // Move current node from open set to closed set
+      closedSet.add(currentKey);
+      closedSetVisual.push({ ...current });
+      
+      // Get all walkable neighbors
+      const neighbors = getNeighbors(current, grid);
+      
+      for (const neighbor of neighbors) {
+        const neighborKey = posKey(neighbor);
+        
+        // Skip if already evaluated
+        if (closedSet.has(neighborKey)) continue;
+        
+        // Calculate tentative gScore (cost to reach neighbor)
+        // Use 1.4 for diagonal movement cost instead of 1.0
+        const isDiagonal = 
+          Math.abs(neighbor.x - current.x) === 1 && 
+          Math.abs(neighbor.y - current.y) === 1;
+        
+        const moveCost = isDiagonal ? 1.4 : 1.0;
+        const tentativeGScore = (gScore.get(currentKey) || Infinity) + moveCost;
+        
+        // Check if the node is not in open set or if we found a better path
+        const inOpenSet = openSet.contains(neighborKey);
+        if (!inOpenSet || tentativeGScore < (gScore.get(neighborKey) || Infinity)) {
+          // Update path and scores
+          cameFrom.set(neighborKey, current);
+          gScore.set(neighborKey, tentativeGScore);
+          fScore.set(neighborKey, tentativeGScore + manhattanDistance(neighbor, goal));
+          
+          // Add to open set if not already there
+          if (!inOpenSet) {
+            openSet.enqueue(neighbor, fScore.get(neighborKey) || Infinity);
+            openSetVisual.push({ ...neighbor });
+          }
+          
+          // Reconstruct current path for visualization
+          if (inOpenSet) {
+            const currentVisPath = reconstructPath(cameFrom, neighbor);
+            addCurrentPath({
+              entityId,
+              path: currentVisPath,
+              color
+            });
+          }
         }
       }
+      
+      // Update visualization after each step
+      setOpenSet([...openSetVisual]);
+      setClosedSet([...closedSetVisual]);
     }
     
-    // Update visualization after each step
-    setOpenSet([...openSetVisual]);
-    setClosedSet([...closedSetVisual]);
+    // No path found
+    return [];
+  } catch (error) {
+    console.error("Error finding path:", error);
+    return [];
   }
-  
-  // No path found
-  return [];
-};
-
-// Helper to check if a position is valid within the grid
-const isValidPosition = (pos: GridPosition, grid: boolean[][]): boolean => {
-  return (
-    pos.x >= 0 && pos.x < grid[0].length &&
-    pos.y >= 0 && pos.y < grid.length &&
-    grid[pos.y][pos.x] // Check if the tile is walkable
-  );
-};
-
-// Reconstruct path from cameFrom map
-const reconstructPath = (
-  cameFrom: Map<string, GridPosition>,
-  current: GridPosition
-): GridPosition[] => {
-  const path = [current];
-  const posKey = (pos: GridPosition) => `${pos.x},${pos.y}`;
-  let currentKey = posKey(current);
-  
-  while (cameFrom.has(currentKey)) {
-    const prev = cameFrom.get(currentKey)!;
-    path.unshift(prev);
-    currentKey = posKey(prev);
-  }
-  
-  return path;
 };
