@@ -135,6 +135,8 @@ export const useEntityStore = create<EntityState>((set, get) => ({
   updateNPCs: (deltaTime) => set((state) => {
     const { npcControllers } = state;
     const updatedNPCs = [...state.npcs];
+    const { width, height } = useGridStore.getState().gridSize;
+    const TILE_SIZE = 30;
     
     // Update each NPC using its AI controller
     for (let i = 0; i < updatedNPCs.length; i++) {
@@ -147,6 +149,26 @@ export const useEntityStore = create<EntityState>((set, get) => ({
         
         // Update current state for display
         npc.currentState = controller.getCurrentState();
+        
+        // Check if NPC is within valid grid bounds
+        const isOutOfBounds = 
+          npc.position.x < 0 || 
+          npc.position.x >= width || 
+          npc.position.y < 0 || 
+          npc.position.y >= height;
+        
+        // Fix position if out of bounds
+        if (isOutOfBounds) {
+          console.log(`Fixing out of bounds NPC ${npc.id} at position (${npc.position.x}, ${npc.position.y})`);
+          
+          // Reset to a safe position in the center of the grid
+          npc.position = { x: Math.floor(width / 2), y: Math.floor(height / 2) };
+          npc.pixelPosition = {
+            x: npc.position.x * TILE_SIZE,
+            y: npc.position.y * TILE_SIZE
+          };
+          npc.targetPosition = { ...npc.position };
+        }
       }
     }
     

@@ -11,17 +11,34 @@ const isValidPosition = (pos: GridPosition): boolean => {
   
   if (!grid || grid.length === 0) return false;
   
+  // Check position values are valid numbers and within reasonable range
+  if (
+    !pos || 
+    !Number.isFinite(pos.x) || 
+    !Number.isFinite(pos.y) ||
+    Math.abs(pos.x) > 10000 ||  // Sanity check for extremely large values
+    Math.abs(pos.y) > 10000
+  ) {
+    return false;
+  }
+  
   // Round positions to handle decimal values
   const x = Math.round(pos.x);
   const y = Math.round(pos.y);
   
-  return (
-    x >= 0 && 
-    x < grid[0].length &&
-    y >= 0 && 
-    y < grid.length &&
-    grid[y][x] // Check if the tile is walkable
-  );
+  try {
+    // Check grid bounds and walkability
+    return (
+      x >= 0 && 
+      x < grid[0].length &&
+      y >= 0 && 
+      y < grid.length &&
+      grid[y][x] // Check if the tile is walkable
+    );
+  } catch (error) {
+    console.error("Error checking valid position:", error);
+    return false;
+  }
 };
 
 /**
@@ -458,29 +475,64 @@ export class MerchantBehavior implements StateMachine {
    * Find a valid walkable position near the given position
    */
   private findValidPositionNear(pos: GridPosition): GridPosition | null {
+    // Check if the input position itself is valid and finite
+    if (!pos || !Number.isFinite(pos.x) || !Number.isFinite(pos.y)) {
+      console.log(`Cannot find valid position near invalid position: ${JSON.stringify(pos)}`);
+      
+      // Use a fallback position in the center of the map
+      const { width, height } = useGridStore.getState().gridSize;
+      pos = { x: Math.floor(width / 2), y: Math.floor(height / 2) };
+    }
+    
     const { width, height } = useGridStore.getState().gridSize;
     const searchRadius = 5; // How far to search for a valid position
     
-    // Try positions in increasing distance from the target
-    for (let radius = 1; radius <= searchRadius; radius++) {
-      for (let offsetX = -radius; offsetX <= radius; offsetX++) {
-        for (let offsetY = -radius; offsetY <= radius; offsetY++) {
-          // Skip positions that aren't on the radius boundary
-          if (Math.abs(offsetX) !== radius && Math.abs(offsetY) !== radius) continue;
-          
-          const testX = Math.round(pos.x + offsetX);
-          const testY = Math.round(pos.y + offsetY);
-          
-          // Check if this position is valid
-          if (isValidPosition({ x: testX, y: testY })) {
-            return { x: testX, y: testY };
+    try {
+      // Round the starting position to ensure we're working with integers
+      const startX = Math.round(Math.min(width - 1, Math.max(0, pos.x)));
+      const startY = Math.round(Math.min(height - 1, Math.max(0, pos.y)));
+      
+      // First check if the starting position (after clamping) is valid
+      if (isValidPosition({ x: startX, y: startY })) {
+        return { x: startX, y: startY };
+      }
+      
+      // Try positions in increasing distance from the target
+      for (let radius = 1; radius <= searchRadius; radius++) {
+        for (let offsetX = -radius; offsetX <= radius; offsetX++) {
+          for (let offsetY = -radius; offsetY <= radius; offsetY++) {
+            // Skip positions that aren't on the radius boundary
+            if (Math.abs(offsetX) !== radius && Math.abs(offsetY) !== radius) continue;
+            
+            const testX = Math.round(startX + offsetX);
+            const testY = Math.round(startY + offsetY);
+            
+            // Make sure we're within grid bounds
+            if (testX < 0 || testX >= width || testY < 0 || testY >= height) continue;
+            
+            // Check if this position is valid/walkable
+            if (isValidPosition({ x: testX, y: testY })) {
+              return { x: testX, y: testY };
+            }
           }
         }
       }
+      
+      // If we can't find a valid position nearby, try a last resort - the center of the map
+      const centerX = Math.floor(width / 2);
+      const centerY = Math.floor(height / 2);
+      
+      if (isValidPosition({ x: centerX, y: centerY })) {
+        console.log(`Using center position (${centerX}, ${centerY}) as last resort for NPC ${this.npc.id}`);
+        return { x: centerX, y: centerY };
+      }
+      
+      // Couldn't find any valid position
+      return null;
+    } catch (error) {
+      console.error("Error finding valid position:", error);
+      return null;
     }
-    
-    // Couldn't find a valid position
-    return null;
   }
   
   /**

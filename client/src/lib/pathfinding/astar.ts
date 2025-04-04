@@ -15,12 +15,23 @@ const euclideanDistance = (a: GridPosition, b: GridPosition): number => {
 
 // Helper to check if a position is valid within the grid
 const isValidPosition = (pos: GridPosition, grid: boolean[][]): boolean => {
+  // Check if position is valid and not NaN or Infinity
+  if (
+    !pos || 
+    !Number.isFinite(pos.x) || 
+    !Number.isFinite(pos.y) ||
+    Math.abs(pos.x) > 10000 ||  // Sanity check for extremely large values
+    Math.abs(pos.y) > 10000
+  ) {
+    return false;
+  }
+  
   // Round positions to handle decimal values
   const x = Math.round(pos.x);
   const y = Math.round(pos.y);
   
+  // Check grid bounds and walkability
   return (
-    pos &&
     grid &&
     grid.length > 0 &&
     grid[0].length > 0 &&

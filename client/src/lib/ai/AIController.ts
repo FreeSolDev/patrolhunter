@@ -67,10 +67,26 @@ export class AIController {
     const target = this.npc.targetPosition;
     if (!target) return;
     
+    // Validate coordinates to ensure they're in bounds and valid
+    if (
+      !Number.isFinite(this.npc.position.x) || 
+      !Number.isFinite(this.npc.position.y) || 
+      !Number.isFinite(target.x) || 
+      !Number.isFinite(target.y)
+    ) {
+      console.log(`Invalid positions for path: NPC at (${this.npc.position.x}, ${this.npc.position.y}), Target at (${target.x}, ${target.y})`);
+      
+      // Reset NPC to center of the map if position is invalid
+      const { width, height } = { width: 60, height: 60 }; // Fallback values
+      this.npc.position = { x: Math.floor(width / 2), y: Math.floor(height / 2) };
+      this.npc.pixelPosition = { x: this.npc.position.x * 30, y: this.npc.position.y * 30 };
+      return;
+    }
+    
     // Don't recalculate if we're already at the target
     if (
-      this.npc.position.x === target.x &&
-      this.npc.position.y === target.y
+      Math.round(this.npc.position.x) === Math.round(target.x) &&
+      Math.round(this.npc.position.y) === Math.round(target.y)
     ) return;
     
     // Set path color based on NPC type for visualization
@@ -95,23 +111,52 @@ export class AIController {
         pathColor = "#FFFFFF"; // White
     }
     
-    // Find a new path to the target
+    // Find a new path to the target using validated positions
+    // Make sure positions are in bounds
+    const { width, height } = { width: 60, height: 60 }; // Using fixed values as a fallback
+    
     const start: GridPosition = { 
-      x: Math.round(this.npc.position.x), 
-      y: Math.round(this.npc.position.y) 
+      x: Math.min(width - 1, Math.max(0, Math.round(this.npc.position.x))), 
+      y: Math.min(height - 1, Math.max(0, Math.round(this.npc.position.y)))
     };
-    const goal: GridPosition = { x: target.x, y: target.y };
+    
+    const goal: GridPosition = { 
+      x: Math.min(width - 1, Math.max(0, Math.round(target.x))), 
+      y: Math.min(height - 1, Math.max(0, Math.round(target.y)))
+    };
     
     try {
       this.currentPath = findPath(start, goal, this.npc.id, pathColor);
       this.pathIndex = 0;
     } catch (error) {
-      console.error("Error finding path:", error);
+      console.error(`Error finding path for NPC ${this.npc.id}:`, error);
     }
   }
   
   // Follow the current path
   private followPath(deltaTime: number): void {
+    // Grid dimensions (fixed values as a fallback)
+    const GRID_WIDTH = 60;
+    const GRID_HEIGHT = 60;
+    const TILE_SIZE = 30; // Same as in Game.tsx
+    
+    // Validate NPC position
+    if (
+      !Number.isFinite(this.npc.position.x) || 
+      !Number.isFinite(this.npc.position.y) ||
+      !Number.isFinite(this.npc.pixelPosition.x) || 
+      !Number.isFinite(this.npc.pixelPosition.y)
+    ) {
+      // Reset to a safe position
+      console.log(`Fixing invalid NPC position for ${this.npc.id}`);
+      this.npc.position = { x: Math.floor(GRID_WIDTH / 2), y: Math.floor(GRID_HEIGHT / 2) };
+      this.npc.pixelPosition = { x: this.npc.position.x * TILE_SIZE, y: this.npc.position.y * TILE_SIZE };
+      this.currentPath = [];
+      this.npc.isMoving = false;
+      return;
+    }
+    
+    // Check if we have a valid path to follow
     if (this.currentPath.length <= 1 || this.pathIndex >= this.currentPath.length) {
       this.npc.isMoving = false;
       return;
@@ -120,11 +165,16 @@ export class AIController {
     this.npc.isMoving = true;
     this.npc.currentPathIndex = this.pathIndex;
     
-    // Calculate pixel positions for smooth movement
-    const TILE_SIZE = 30; // Same as in Game.tsx
-    
     // Get the next position to move towards in grid coordinates
     const nextPosition = this.currentPath[this.pathIndex];
+    
+    // Validate next position
+    if (!nextPosition || !Number.isFinite(nextPosition.x) || !Number.isFinite(nextPosition.y)) {
+      console.log(`Invalid next position in path for NPC ${this.npc.id}`);
+      // Skip this path segment
+      this.pathIndex++;
+      return;
+    }
     
     // Convert grid position to pixel position
     const nextPixelX = nextPosition.x * TILE_SIZE;
@@ -164,12 +214,19 @@ export class AIController {
       const pixelSpeed = this.npc.speed * TILE_SIZE;
       
       // Move towards next position at NPC's movement speed
-      this.npc.pixelPosition.x += normalizedDirX * pixelSpeed * deltaTime;
-      this.npc.pixelPosition.y += normalizedDirY * pixelSpeed * deltaTime;
+      const newPixelX = this.npc.pixelPosition.x + normalizedDirX * pixelSpeed * deltaTime;
+      const newPixelY = this.npc.pixelPosition.y + normalizedDirY * pixelSpeed * deltaTime;
       
-      // Update grid position based on pixel position
-      this.npc.position.x = this.npc.pixelPosition.x / TILE_SIZE;
-      this.npc.position.y = this.npc.pixelPosition.y / TILE_SIZE;
+      // Ensure we're staying within valid grid bounds in pixel space
+      const maxPixelX = (GRID_WIDTH - 1) * TILE_SIZE;
+      const maxPixelY = (GRID_HEIGHT - 1) * TILE_SIZE;
+      
+      this.npc.pixelPosition.x = Math.min(maxPixelX, Math.max(0, newPixelX));
+      this.npc.pixelPosition.y = Math.min(maxPixelY, Math.max(0, newPixelY));
+      
+      // Update grid position based on pixel position, ensuring it's within bounds
+      this.npc.position.x = Math.min(GRID_WIDTH - 1, Math.max(0, this.npc.pixelPosition.x / TILE_SIZE));
+      this.npc.position.y = Math.min(GRID_HEIGHT - 1, Math.max(0, this.npc.pixelPosition.y / TILE_SIZE));
     }
   }
   
