@@ -4,6 +4,7 @@ import { useEntityStore } from "../lib/stores/useEntityStore";
 import { usePathfinding } from "../lib/stores/usePathfinding";
 import { AIType } from "../lib/ai/AITypes";
 import { useGame } from "../lib/stores/useGame";
+import { usePerformanceStore } from "../lib/stores/usePerformanceStore";
 import { GridPosition, Player, NPC, Controls, PathData } from "../lib/types";
 
 // Define tile size in pixels
@@ -474,8 +475,18 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     });
   };
 
+  // Get performance metrics functions
+  const { 
+    addPerformanceMetric, 
+    updateEntityMetric,
+    visualizationOptions
+  } = usePerformanceStore();
+
   // Game loop
   const gameLoop = (timestamp: number) => {
+    // Start performance measurement
+    const frameStartTime = performance.now();
+    
     if (lastTimeRef.current === 0) {
       lastTimeRef.current = timestamp;
     }
@@ -493,8 +504,54 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       // Update NPCs
       updateNPCs(delta);
       
+      // Update performance metrics for entities
+      if (debugModeRef.current && visualizationOptions.showMetrics) {
+        npcs.forEach(npc => {
+          const playerDistance = player ? 
+            Math.sqrt(
+              Math.pow(player.position.x - npc.position.x, 2) + 
+              Math.pow(player.position.y - npc.position.y, 2)
+            ) : null;
+            
+          // Get the target distance
+          const targetDistance = Math.sqrt(
+            Math.pow(npc.targetPosition.x - npc.position.x, 2) + 
+            Math.pow(npc.targetPosition.y - npc.position.y, 2)
+          );
+          
+          // Find path data for this entity
+          const entityPath = currentPaths.find(p => p.entityId === npc.id);
+          const pathLength = entityPath ? entityPath.path.length : 0;
+          
+          // Update entity metrics
+          updateEntityMetric(npc.id, {
+            entityId: npc.id,
+            entityType: npc.type,
+            currentState: npc.currentState,
+            targetDistance: targetDistance,
+            playerDistance: playerDistance,
+            pathLength: pathLength
+          });
+        });
+      }
+      
       // Render the game
       renderGame();
+      
+      // Calculate and record performance metrics
+      if (debugModeRef.current && visualizationOptions.showMetrics) {
+        const frameEndTime = performance.now();
+        const frameTime = frameEndTime - frameStartTime;
+        const fps = delta > 0 ? 1 / delta : 0;
+        
+        addPerformanceMetric({
+          frameTime,
+          fps,
+          entityCount: npcs.length + 1, // NPCs + player
+          pathsRecalculated: currentPaths.length,
+          visibleEntities: npcs.length + 1 // Simplified; all entities are considered visible
+        });
+      }
     }
     
     // Continue the loop
@@ -512,7 +569,23 @@ const Game = ({ canvasRef, controls }: GameProps) => {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
-  }, [player, npcs, grid, gridSize, obstacles, openSet, closedSet, currentPaths, controls]);
+  }, [
+    player, 
+    npcs, 
+    grid, 
+    gridSize, 
+    obstacles, 
+    openSet, 
+    closedSet, 
+    currentPaths, 
+    controls,
+    updatePlayer,
+    updateNPCs,
+    addPerformanceMetric,
+    updateEntityMetric,
+    visualizationOptions,
+    phase
+  ]);
 
   return null; // No JSX needed as we're rendering directly to canvas
 };
