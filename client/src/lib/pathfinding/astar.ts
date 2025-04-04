@@ -15,16 +15,20 @@ const euclideanDistance = (a: GridPosition, b: GridPosition): number => {
 
 // Helper to check if a position is valid within the grid
 const isValidPosition = (pos: GridPosition, grid: boolean[][]): boolean => {
+  // Round positions to handle decimal values
+  const x = Math.round(pos.x);
+  const y = Math.round(pos.y);
+  
   return (
     pos &&
     grid &&
     grid.length > 0 &&
     grid[0].length > 0 &&
-    pos.x >= 0 && 
-    pos.x < grid[0].length &&
-    pos.y >= 0 && 
-    pos.y < grid.length &&
-    grid[pos.y][pos.x] // Check if the tile is walkable
+    x >= 0 && 
+    x < grid[0].length &&
+    y >= 0 && 
+    y < grid.length &&
+    grid[y][x] // Check if the tile is walkable
   );
 };
 
@@ -49,7 +53,10 @@ const reconstructPath = (
 // Helper to get valid neighbors for a position
 const getNeighbors = (position: GridPosition, grid: boolean[][]): GridPosition[] => {
   const neighbors: GridPosition[] = [];
-  const { x, y } = position;
+  // Round positions to handle decimal values
+  const x = Math.round(position.x);
+  const y = Math.round(position.y);
+  
   const directions = [
     { x: 0, y: -1 }, // North
     { x: 1, y: 0 },  // East
@@ -122,8 +129,8 @@ export const findPath = (
       return [];
     }
     
-    // If the start and goal are the same, return just the start
-    if (start.x === goal.x && start.y === goal.y) return [start];
+    // If the start and goal are the same (using rounded values), return just the start
+    if (Math.round(start.x) === Math.round(goal.x) && Math.round(start.y) === Math.round(goal.y)) return [start];
     
     // Initialize data structures
     const openSet = new PriorityQueue<GridPosition>();
@@ -158,8 +165,8 @@ export const findPath = (
       openSetVisual.push({ ...current });
       setOpenSet(openSetVisual);
       
-      // Check if we've reached the goal
-      if (current.x === goal.x && current.y === goal.y) {
+      // Check if we've reached the goal (using rounded values)
+      if (Math.round(current.x) === Math.round(goal.x) && Math.round(current.y) === Math.round(goal.y)) {
         // Reconstruct the path
         const path = reconstructPath(cameFrom, current);
         
