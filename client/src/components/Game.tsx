@@ -63,58 +63,9 @@ const Game = ({ canvasRef, controls }: GameProps) => {
   useEffect(() => {
     console.log("Initializing game...");
     
-    // Set grid size and initialize (5x bigger)
-    const gridSize = { width: 100, height: 100 };
-    
-    // Create random obstacles for the larger map
-    const obstacles = [];
-    
-    // Add some random obstacles (10% of tiles)
-    const obstacleCount = Math.floor(gridSize.width * gridSize.height * 0.1);
-    for (let i = 0; i < obstacleCount; i++) {
-      const x = Math.floor(Math.random() * gridSize.width);
-      const y = Math.floor(Math.random() * gridSize.height);
-      
-      // Avoid placing obstacles at player start position
-      if (Math.abs(x - 10) < 3 && Math.abs(y - 10) < 3) {
-        continue;
-      }
-      
-      obstacles.push({ x, y });
-    }
-    
-    // Add some obstacle clusters/walls
-    const createObstacleCluster = (centerX: number, centerY: number, radius: number, density: number) => {
-      for (let y = centerY - radius; y <= centerY + radius; y++) {
-        for (let x = centerX - radius; x <= centerX + radius; x++) {
-          // Skip if outside grid boundaries
-          if (x < 0 || y < 0 || x >= gridSize.width || y >= gridSize.height) {
-            continue;
-          }
-          
-          // Higher chance of obstacles near the center
-          const distance = Math.sqrt(Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2));
-          const chance = density * (1 - distance / radius);
-          
-          if (Math.random() < chance) {
-            obstacles.push({ x, y });
-          }
-        }
-      }
-    };
-    
-    // Create several obstacle clusters around the map
-    for (let i = 0; i < 8; i++) {
-      const centerX = Math.floor(Math.random() * gridSize.width);
-      const centerY = Math.floor(Math.random() * gridSize.height);
-      const radius = 3 + Math.floor(Math.random() * 5);
-      const density = 0.3 + Math.random() * 0.4;
-      
-      createObstacleCluster(centerX, centerY, radius, density);
-    }
-    
-    // Initialize grid with obstacles
-    initializeGrid(gridSize, obstacles);
+    // Set grid size and initialize
+    const gridSize = { width: 20, height: 20 };
+    initializeGrid(gridSize);
     
     // Create player at position [10, 10]
     createPlayer({ 
@@ -122,48 +73,26 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       isMonster: false 
     });
     
-    // Create 300 NPCs with different AI types and positions
-    const npcArray: Array<{
-      position: { x: number; y: number };
-      type: AIType;
-      groupId?: number;
-    }> = [];
-    
-    // Function to create NPCs of a specific type
-    const createNPCsOfType = (type: AIType, count: number, groupIds = false) => {
-      for (let i = 0; i < count; i++) {
-        // Create a random position within the grid
-        const x = Math.floor(Math.random() * (gridSize.width - 10)) + 5;
-        const y = Math.floor(Math.random() * (gridSize.height - 10)) + 5;
-        
-        // Create NPC object
-        const npc = { 
-          position: { x, y }, 
-          type 
-        };
-        
-        // Add group ID if needed (for guards)
-        if (groupIds) {
-          // Assign to one of 5 different groups
-          const npcWithGroup = {
-            ...npc,
-            groupId: Math.floor(i / (count / 5)) + 1
-          };
-          npcArray.push(npcWithGroup);
-        } else {
-          npcArray.push(npc);
-        }
-      }
-    };
-    
-    // Distribute 300 NPCs among the different types
-    createNPCsOfType(AIType.GUARD, 80, true);      // 80 guards in groups
-    createNPCsOfType(AIType.HUNTER, 70);           // 70 hunters
-    createNPCsOfType(AIType.SURVIVOR, 90);         // 90 survivors
-    createNPCsOfType(AIType.PRESERVER, 60);        // 60 preserver ring attackers
-    
-    // Initialize all NPCs
-    initializeNPCs(npcArray);
+    // Create various NPCs with different AI types and positions
+    initializeNPCs([
+      // Create some guards (Type 1)
+      { position: { x: 2, y: 2 }, type: AIType.GUARD, groupId: 1 },
+      { position: { x: 3, y: 2 }, type: AIType.GUARD, groupId: 1 },
+      { position: { x: 2, y: 3 }, type: AIType.GUARD, groupId: 1 },
+      
+      // Create some hunters (Type 2)
+      { position: { x: 17, y: 17 }, type: AIType.HUNTER },
+      { position: { x: 17, y: 2 }, type: AIType.HUNTER },
+      
+      // Create some survivors (Type 3)
+      { position: { x: 5, y: 15 }, type: AIType.SURVIVOR },
+      { position: { x: 15, y: 5 }, type: AIType.SURVIVOR },
+      { position: { x: 10, y: 15 }, type: AIType.SURVIVOR },
+      
+      // Create some life preserver ring attackers (Type 4)
+      { position: { x: 18, y: 10 }, type: AIType.PRESERVER },
+      { position: { x: 7, y: 18 }, type: AIType.PRESERVER },
+    ]);
     
     // Start the game
     start();
@@ -194,29 +123,15 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     ctx.fillStyle = '#87CEEB'; // Sky blue
     ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
     
-    // Calculate camera/viewport that follows the player
+    // Calculate camera/viewport for centering
     const viewportWidth = ctx.canvas.width;
     const viewportHeight = ctx.canvas.height;
     const gridWidthPx = gridSize.width * TILE_SIZE;
     const gridHeightPx = gridSize.height * TILE_SIZE;
     
-    // Camera follows player position
-    let cameraX = 0;
-    let cameraY = 0;
-    
-    if (player && player.pixelPosition) {
-      // Position camera to center on player
-      cameraX = player.pixelPosition.x - viewportWidth / 2 + TILE_SIZE / 2;
-      cameraY = player.pixelPosition.y - viewportHeight / 2 + TILE_SIZE / 2;
-      
-      // Clamp camera to grid boundaries
-      cameraX = Math.max(0, Math.min(cameraX, gridWidthPx - viewportWidth));
-      cameraY = Math.max(0, Math.min(cameraY, gridHeightPx - viewportHeight));
-    }
-    
-    // Calculate offset for rendering based on camera position
-    const offsetX = -cameraX;
-    const offsetY = -cameraY;
+    // Center the grid in the viewport
+    const offsetX = Math.max(0, (viewportWidth - gridWidthPx) / 2);
+    const offsetY = Math.max(0, (viewportHeight - gridHeightPx) / 2);
     
     // Helper function to convert grid coordinates to screen coordinates
     const gridToScreen = (pos: GridPosition): [number, number] => {
@@ -230,29 +145,13 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     ctx.lineWidth = 1;
     ctx.strokeStyle = COLORS.GRID_LINE;
     
-    // Calculate visible range (optimization)
-    const startX = Math.max(0, Math.floor(cameraX / TILE_SIZE));
-    const startY = Math.max(0, Math.floor(cameraY / TILE_SIZE));
-    const endX = Math.min(gridSize.width, Math.ceil((cameraX + viewportWidth) / TILE_SIZE) + 1);
-    const endY = Math.min(gridSize.height, Math.ceil((cameraY + viewportHeight) / TILE_SIZE) + 1);
-    
-    // Draw only visible grid cells (optimized)
-    for (let y = startY; y < endY; y++) {
-      for (let x = startX; x < endX; x++) {
+    // Draw grid cells
+    for (let y = 0; y < gridSize.height; y++) {
+      for (let x = 0; x < gridSize.width; x++) {
         const [screenX, screenY] = gridToScreen({ x, y });
         
-        // Check if tile is in the visible area
-        if (
-          screenX + TILE_SIZE < 0 || 
-          screenY + TILE_SIZE < 0 || 
-          screenX > viewportWidth || 
-          screenY > viewportHeight
-        ) {
-          continue; // Skip tiles that are not visible
-        }
-        
         // Determine if this position is walkable
-        const walkable = grid[y] && grid[y][x];
+        const walkable = grid[y][x];
         const isObstacle = obstacles.some(o => o.x === x && o.y === y);
         
         // Fill tile based on its type
@@ -496,22 +395,8 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       }
     }
     
-    // Draw only visible NPCs
+    // Draw NPCs
     npcs.forEach(npc => {
-      // Skip if NPC is far outside the viewport to save processing
-      const npcPixelX = npc.pixelPosition ? npc.pixelPosition.x : npc.position.x * TILE_SIZE;
-      const npcPixelY = npc.pixelPosition ? npc.pixelPosition.y : npc.position.y * TILE_SIZE;
-      
-      // Check if NPC is too far from viewport to be visible
-      if (
-        npcPixelX < cameraX - TILE_SIZE || 
-        npcPixelY < cameraY - TILE_SIZE ||
-        npcPixelX > cameraX + viewportWidth + TILE_SIZE || 
-        npcPixelY > cameraY + viewportHeight + TILE_SIZE
-      ) {
-        return; // Skip rendering this NPC
-      }
-      
       // Use pixel position for smooth movement instead of grid position
       let screenX, screenY;
       
@@ -569,22 +454,15 @@ const Game = ({ canvasRef, controls }: GameProps) => {
         ctx.globalAlpha = 1.0;
       }
       
-      // Only draw state text if close enough to player
-      if (
-        player && 
-        Math.abs(npc.position.x - player.position.x) < 10 && 
-        Math.abs(npc.position.y - player.position.y) < 10
-      ) {
-        // Add state text above NPC
-        ctx.fillStyle = COLORS.TEXT;
-        ctx.textAlign = "center";
-        ctx.font = "10px Arial";
-        ctx.fillText(
-          npc.currentState,
-          screenX + TILE_SIZE / 2,
-          screenY - 5
-        );
-      }
+      // Add state text above NPC
+      ctx.fillStyle = COLORS.TEXT;
+      ctx.textAlign = "center";
+      ctx.font = "10px Arial";
+      ctx.fillText(
+        npc.currentState,
+        screenX + TILE_SIZE / 2,
+        screenY - 5
+      );
     });
   };
 
