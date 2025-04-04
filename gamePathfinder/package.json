@@ -1,0 +1,27 @@
+{
+  "name": "game-pathfinder",
+  "version": "1.0.0",
+  "description": "A robust pathfinding library for 2D grid-based games",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "prepublish": "npm run build"
+  },
+  "keywords": [
+    "pathfinding",
+    "astar",
+    "game",
+    "grid",
+    "navigation"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.0.4"
+  }
+}
