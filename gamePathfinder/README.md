@@ -6,12 +6,11 @@ A robust and efficient pathfinding library for 2D grid-based games, with support
 
 - Fast and reliable A* pathfinding algorithm
 - Support for different heuristics (Manhattan, Euclidean, Chebyshev)
-- Path smoothing and optimization
-- Funnel algorithm for path refinement
-- Debug visualizer for development
-- Path caching to improve performance
-- Comprehensive statistics and monitoring
-- Built with TypeScript for type safety
+- Path smoothing and optimization algorithms
+- Grid management with walkable/obstacle detection
+- Path caching and performance optimization
+- Entity behavior modes with state management
+- Debug visualization tools
 
 ## Basic Usage
 
@@ -42,6 +41,158 @@ if (result.found) {
   console.log('No path found');
 }
 ```
+
+## Entity Behavior Modes
+
+The library supports different AI behavior modes for entities in your game. Here's how to set them up:
+
+```typescript
+import { createEntityController, EntityType, EntityState } from 'game-pathfinder';
+
+// Create an entity controller with behaviors
+const entityController = createEntityController({
+  grid,
+  pathfinder,
+  behaviors: {
+    // Guard behavior (patrolling + aggressive)
+    guard: {
+      initialState: 'patrolling',
+      updateInterval: 0.5,
+      sightDistance: 8,
+      states: {
+        // Define state transitions and behaviors
+        patrolling: {
+          onEnter: (entity) => {
+            // Set up patrol route
+            entity.targetPosition = findPatrolTarget(entity);
+          },
+          update: (entity, deltaTime) => {
+            // Check for player or follow patrol route
+            if (canSeePlayer(entity)) {
+              return 'chasing';
+            }
+            
+            // Move to patrol point
+            followPath(entity, deltaTime);
+          }
+        },
+        chasing: {
+          onEnter: (entity) => {
+            // Alert nearby guards
+            alertNearbyGuards(entity);
+          },
+          update: (entity, deltaTime) => {
+            // Chase the player
+            entity.targetPosition = getPlayerPosition();
+            followPath(entity, deltaTime);
+            
+            if (!canSeePlayer(entity)) {
+              return 'searching';
+            }
+          }
+        },
+        searching: {
+          // ... search behavior implementation
+        }
+      }
+    },
+    
+    // Merchant behavior (trading + self-preservation)
+    merchant: {
+      initialState: 'traveling',
+      // ... merchant behavior configuration
+    },
+    
+    // Other behaviors...
+  }
+});
+
+// Creating entities with specific behaviors
+const guard = entityController.createEntity({
+  id: 'guard-1',
+  type: EntityType.GUARD,
+  position: { x: 10, y: 10 },
+  speed: 2.0
+});
+
+// Updating all entities
+entityController.update(deltaTime);
+
+// Get current entity states
+const entityStates = entityController.getEntityStates();
+console.log(`Guard state: ${entityStates['guard-1'].currentState}`);
+```
+
+## Entity State API
+
+The library provides a comprehensive API for managing entity states:
+
+### Getting Entity States
+
+```typescript
+// Get all entity states
+const allStates = entityController.getEntityStates();
+
+// Get a specific entity's state
+const guardState = entityController.getEntityState('guard-1');
+
+// Check if an entity is in a specific state
+const isChasing = entityController.isInState('guard-1', 'chasing');
+
+// Subscribe to state changes
+entityController.onStateChange('guard-1', (oldState, newState) => {
+  console.log(`Guard changed from ${oldState} to ${newState}`);
+});
+```
+
+### Available Entity Types
+
+The library supports these built-in entity types:
+
+- `EntityType.GUARD` - Patrols areas and attacks intruders
+- `EntityType.HUNTER` - Actively seeks targets, adapts to target behavior
+- `EntityType.SURVIVOR` - Focuses on self-preservation, avoids threats
+- `EntityType.PRESERVER` - Uses attack-retreat tactics
+- `EntityType.MERCHANT` - Travels between hotspots, avoids confrontation
+
+### Entity States
+
+Each entity type has its own set of states:
+
+#### Guard States
+- `patrolling` - Moving between patrol points
+- `chasing` - Actively pursuing a target
+- `searching` - Looking for a lost target
+- `attacking` - Engaging a target
+- `returning` - Returning to patrol route
+
+#### Hunter States
+- `hunting` - Searching for targets
+- `stalking` - Following target from a distance
+- `pursuing` - Actively chasing target
+- `attacking` - Engaging a target
+- `resting` - Recovering after an engagement
+
+#### Survivor States
+- `wandering` - Moving around normally
+- `fleeing` - Running away from threats
+- `hiding` - Staying in a safe location
+- `cautious` - Moving carefully after detecting threats
+- `relaxed` - Normal state when no threats detected
+
+#### Preserver States
+- `patrolling` - Moving around a territory
+- `charging` - Moving towards a target to attack
+- `attacking` - Engaging a target
+- `retreating` - Moving away after an attack
+- `regrouping` - Preparing for next attack
+
+#### Merchant States
+- `traveling` - Moving between hotspots
+- `trading` - Stationary at a trading hotspot
+- `fleeing` - Running from threats
+- `waiting` - Paused at a location
+- `returning` - Going back to a safe area
 
 ## API Reference
 

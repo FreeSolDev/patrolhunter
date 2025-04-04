@@ -6,6 +6,18 @@ export { AStar } from './astar';
 export { Grid } from './grid';
 export { PathSmoother } from './pathSmoother';
 
+// Export entity controller
+export { 
+  EntityController, 
+  createEntityController,
+  EntityType,
+  type Entity,
+  type EntityBehavior,
+  type EntityState,
+  type StateUpdateFn,
+  type StateEventFn
+} from './entityController';
+
 // Export helper functions and utilities
 export { createDebugVisualizer } from './debug';
 export { createFunnel } from './funnel';

@@ -1,9 +1,20 @@
-import { createPathfinder, Grid, GridPosition, PathResult } from '../src';
+import { 
+  createPathfinder, 
+  Grid, 
+  GridPosition, 
+  PathResult, 
+  EntityType, 
+  createEntityController 
+} from '../src';
 
-// Example of how to integrate the pathfinder with a game
-// This is just an example and should be adapted to your game's architecture
+/**
+ * This example shows how to integrate the pathfinding system with an existing game
+ * by creating adapter classes that convert between game and pathfinder formats
+ */
 
-// 1. Define your game-specific grid adapter
+/**
+ * Adapter that converts your game's grid representation to the pathfinder's Grid
+ */
 class GameGridAdapter {
   private gameGrid: any; // Your game's grid representation
   private width: number;
@@ -15,15 +26,17 @@ class GameGridAdapter {
     this.height = gameGrid.height;
   }
   
-  // Convert your game grid to a pathfinder Grid
+  /**
+   * Convert the game grid to a pathfinder Grid
+   */
   toPathfinderGrid(): Grid {
     const grid = new Grid(this.width, this.height);
     
-    // Iterate through your game grid and set walkable values
+    // Iterate through the game grid and set walkable status in the pathfinder grid
     for (let y = 0; y < this.height; y++) {
       for (let x = 0; x < this.width; x++) {
-        // This should match your game's logic for determining walkable tiles
-        const isWalkable = !this.gameGrid.isSolid(x, y);
+        // Example: Assuming your game has a isObstacle(x, y) method
+        const isWalkable = !this.gameGrid.isObstacle(x, y);
         grid.setWalkable(x, y, isWalkable);
       }
     }
@@ -32,7 +45,9 @@ class GameGridAdapter {
   }
 }
 
-// 2. Create a pathfinding service for your game
+/**
+ * Service that handles pathfinding operations for your game
+ */
 class GamePathfindingService {
   private grid: Grid;
   private pathfinder: ReturnType<typeof createPathfinder>;
@@ -41,109 +56,153 @@ class GamePathfindingService {
   constructor(gameGrid: any) {
     this.gameGridAdapter = new GameGridAdapter(gameGrid);
     this.grid = this.gameGridAdapter.toPathfinderGrid();
-    this.pathfinder = createPathfinder(this.grid, {
+    
+    // Create a pathfinder with custom options
+    this.pathfinder = createPathfinder(this.grid, undefined, {
       allowDiagonals: true,
       cutCorners: false,
       heuristic: 'manhattan'
     });
   }
   
-  // Find a path for an entity
+  /**
+   * Find a path between two points on the grid
+   */
   findPath(startX: number, startY: number, goalX: number, goalY: number): PathResult {
-    return this.pathfinder.findPath(startX, startY, goalX, goalY, true);
+    return this.pathfinder.findPath(startX, startY, goalX, goalY, true); // Use path smoothing
   }
   
-  // Update the grid when your game's terrain changes
+  /**
+   * Update the internal grid when game grid changes
+   */
   updateGrid(gameGrid: any): void {
     this.gameGridAdapter = new GameGridAdapter(gameGrid);
     this.grid = this.gameGridAdapter.toPathfinderGrid();
     this.pathfinder.setGrid(this.grid);
   }
   
-  // Helper methods specific to your game
+  /**
+   * Find a valid position near a potentially invalid one
+   */
   findValidPositionNear(x: number, y: number, radius: number = 5): GridPosition | null {
-    // Use the grid's method to find a walkable position
-    return this.grid.findNearestWalkable(x, y, radius);
+    // Check the original position first
+    if (this.grid.isWalkable(x, y)) {
+      return { x, y };
+    }
+    
+    // Search in expanding squares
+    for (let r = 1; r <= radius; r++) {
+      // Check all positions at the current radius
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dy = -r; dy <= r; dy++) {
+          // Only check positions at the current radius (not inside it)
+          if (Math.abs(dx) === r || Math.abs(dy) === r) {
+            const newX = x + dx;
+            const newY = y + dy;
+            
+            if (this.grid.isWalkable(newX, newY)) {
+              return { x: newX, y: newY };
+            }
+          }
+        }
+      }
+    }
+    
+    return null;
   }
 }
 
-// 3. Integration with game logic
-// This is a simplified example - adapt to your game architecture
+/**
+ * Setup function - shows how to set up pathfinding in your game's initialization
+ */
 function setupGamePathfinding(gameState: any) {
   // Create the pathfinding service
   const pathfindingService = new GamePathfindingService(gameState.grid);
   
-  // Update service when grid changes
-  gameState.onGridUpdate(() => {
-    pathfindingService.updateGrid(gameState.grid);
-  });
-  
-  // Make the pathfinder available to AI entities
-  gameState.npcs.forEach((npc: any) => {
-    npc.pathfinding = {
-      findPath: (targetX: number, targetY: number) => {
-        const { x, y } = npc.position;
-        return pathfindingService.findPath(x, y, targetX, targetY);
+  // Setup entity controller with your game's AI behaviors
+  const entityController = createEntityController({
+    grid: pathfindingService.findPath(0, 0, 0, 0).grid, // Get grid reference
+    pathfinder: pathfindingService.findPath(0, 0, 0, 0).pathfinder, // Get pathfinder reference
+    behaviors: {
+      // Define your entity behaviors here (similar to entityBehaviorExample.ts)
+      [EntityType.GUARD]: {
+        initialState: 'patrolling',
+        // ... behavior definition
+        states: {
+          // ... state definitions
+        }
       },
-      findValidPositionNear: (x: number, y: number, radius: number) => {
-        return pathfindingService.findValidPositionNear(x, y, radius);
-      }
-    };
+      // ... other behaviors
+    }
   });
   
-  return pathfindingService;
+  // Example: Register for game grid change events
+  gameState.onGridChanged((newGrid: any) => {
+    pathfindingService.updateGrid(newGrid);
+  });
+  
+  // Return the services for use in the game
+  return {
+    pathfindingService,
+    entityController
+  };
 }
 
-// 4. Example usage in a game update loop
+/**
+ * Example game update loop that uses the pathfinding system
+ */
 function gameUpdateLoop(deltaTime: number, gameState: any, pathfindingService: GamePathfindingService) {
-  // Update each NPC
-  gameState.npcs.forEach((npc: any) => {
-    // Check if NPC needs a new path
-    if (npc.needsNewPath) {
-      const target = npc.target;
-      const path = npc.pathfinding.findPath(target.x, target.y);
+  // Update all NPCs
+  for (const npc of gameState.npcs) {
+    if (npc.needsPath) {
+      // Calculate path to target
+      const path = pathfindingService.findPath(
+        npc.position.x, npc.position.y,
+        npc.targetPosition.x, npc.targetPosition.y
+      );
       
       if (path.found) {
-        npc.currentPath = path.path;
-        npc.currentPathIndex = 0;
+        npc.setPath(path.path);
       } else {
-        // No path found, maybe find an alternative target
-        const alternativePos = npc.pathfinding.findValidPositionNear(target.x, target.y);
-        if (alternativePos) {
-          const altPath = npc.pathfinding.findPath(alternativePos.x, alternativePos.y);
-          if (altPath.found) {
-            npc.currentPath = altPath.path;
-            npc.currentPathIndex = 0;
+        // Target position is unreachable, find nearest valid position
+        const alternateTarget = pathfindingService.findValidPositionNear(
+          npc.targetPosition.x, npc.targetPosition.y
+        );
+        
+        if (alternateTarget) {
+          console.log(`Target position (${npc.targetPosition.x}, ${npc.targetPosition.y}) for NPC ${npc.id} is unwalkable! Finding alternate target.`);
+          console.log(`Adjusted target to (${alternateTarget.x}, ${alternateTarget.y})`);
+          
+          npc.targetPosition = alternateTarget;
+          const newPath = pathfindingService.findPath(
+            npc.position.x, npc.position.y,
+            alternateTarget.x, alternateTarget.y
+          );
+          
+          if (newPath.found) {
+            npc.setPath(newPath.path);
           }
         }
       }
-      
-      npc.needsNewPath = false;
     }
     
-    // Follow current path if there is one
-    if (npc.currentPath && npc.currentPath.length > 0) {
-      // Simple path following logic
-      if (npc.currentPathIndex < npc.currentPath.length) {
-        const nextPoint = npc.currentPath[npc.currentPathIndex];
-        
-        // Move towards the next point
-        const dx = nextPoint.x - npc.position.x;
-        const dy = nextPoint.y - npc.position.y;
-        const distanceToNextPoint = Math.sqrt(dx * dx + dy * dy);
-        
-        if (distanceToNextPoint < 0.1) {
-          // Reached the point, move to next
-          npc.currentPathIndex++;
-        } else {
-          // Move towards the point
-          const speed = npc.speed * deltaTime;
-          const moveRatio = speed / distanceToNextPoint;
-          
-          npc.position.x += dx * moveRatio;
-          npc.position.y += dy * moveRatio;
-        }
-      }
+    // Update NPC movement along path
+    npc.update(deltaTime);
+  }
+  
+  // Update player
+  if (gameState.player.isMoving) {
+    // Check for obstacles in player's path
+    const nextX = Math.floor(gameState.player.position.x + gameState.player.velocity.x * deltaTime);
+    const nextY = Math.floor(gameState.player.position.y + gameState.player.velocity.y * deltaTime);
+    
+    if (!gameState.grid.isObstacle(nextX, nextY)) {
+      gameState.player.position.x += gameState.player.velocity.x * deltaTime;
+      gameState.player.position.y += gameState.player.velocity.y * deltaTime;
+    } else {
+      // Player hit an obstacle, stop movement
+      gameState.player.velocity.x = 0;
+      gameState.player.velocity.y = 0;
     }
-  });
+  }
 }

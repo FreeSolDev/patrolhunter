@@ -1,30 +1,31 @@
 import { createPathfinder, Grid, GridPosition, PathResult } from '../src';
 
-// Example of how to adapt the current game to use the new pathfinding library
-// This is based on the existing usePathfinding.ts, useGridStore.ts, and AIController.ts
+/**
+ * This adapter integrates the pathfinder with your existing game code
+ * It adapts your grid store to the pathfinder's grid format
+ */
 
-// First, we create an adapter that converts your existing grid store to our library's grid
 class GridStoreAdapter {
-  // This would be your Zustand store
   private gridStore: any;
   
   constructor(gridStore: any) {
     this.gridStore = gridStore;
   }
   
-  // Convert the grid store to a pathfinder Grid
+  /**
+   * Convert your grid store to a pathfinder Grid
+   */
   toPathfinderGrid(): Grid {
-    const { gridSize, tiles } = this.gridStore.getState();
-    const grid = new Grid(gridSize.width, gridSize.height);
+    const width = this.gridStore.gridWidth;
+    const height = this.gridStore.gridHeight;
+    const grid = new Grid(width, height);
     
-    // Iterate through the tiles and set walkable states
-    for (const tileKey in tiles) {
-      const [x, y] = tileKey.split(',').map(Number);
-      const tile = tiles[tileKey];
-      
-      // Make sure we're handling the correct data format
-      if (!isNaN(x) && !isNaN(y)) {
-        grid.setWalkable(x, y, tile.walkable !== false);
+    // Iterate through your grid and set walkable status in pathfinder grid
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const tile = this.gridStore.getTile(x, y);
+        // Assuming your tiles have a 'walkable' property
+        grid.setWalkable(x, y, tile?.walkable ?? false);
       }
     }
     
@@ -32,17 +33,16 @@ class GridStoreAdapter {
   }
 }
 
-// Now, let's create a service that replaces the usePathfinding.ts functionality
 class GamePathfindingService {
   private grid: Grid;
   private pathfinder: ReturnType<typeof createPathfinder>;
   private gridAdapter: GridStoreAdapter;
   private gridStore: any;
   
-  // Collection of active paths for visualization
+  // Store active entity paths for management
   private activePaths: Map<string, {
     path: GridPosition[];
-    color: string;
+    targetPosition: GridPosition;
   }> = new Map();
   
   constructor(gridStore: any) {
@@ -50,219 +50,252 @@ class GamePathfindingService {
     this.gridAdapter = new GridStoreAdapter(gridStore);
     this.grid = this.gridAdapter.toPathfinderGrid();
     
-    // Create the pathfinder with similar settings to what you had before
-    this.pathfinder = createPathfinder(this.grid, {
+    this.pathfinder = createPathfinder(this.grid, undefined, {
       allowDiagonals: true,
       cutCorners: false,
       heuristic: 'manhattan'
     });
     
-    // Set up a listener for grid changes
     this.setupGridChangeListener();
   }
   
-  // Listen for grid changes and update the pathfinder
+  /**
+   * Listen for grid changes and update pathfinder grid
+   */
   private setupGridChangeListener() {
-    // This depends on how your Zustand store notifies about changes
-    this.gridStore.subscribe(
-      (state: any) => state.gridSize,
-      () => this.refreshGrid()
-    );
-    
-    // Also subscribe to tile changes
-    this.gridStore.subscribe(
-      (state: any) => state.tiles,
-      () => this.refreshGrid()
-    );
+    // This would use your actual event system
+    if (this.gridStore.subscribe) {
+      this.gridStore.subscribe(() => {
+        this.refreshGrid();
+      });
+    }
   }
   
-  // Refresh the grid
+  /**
+   * Refresh the pathfinder grid when your game grid changes
+   */
   private refreshGrid() {
     this.grid = this.gridAdapter.toPathfinderGrid();
     this.pathfinder.setGrid(this.grid);
+    
+    // Recalculate active paths after grid change
+    for (const [entityId, pathData] of this.activePaths.entries()) {
+      // Get current entity position from your game state
+      const entity = this.gridStore.getEntity(entityId);
+      if (entity) {
+        const result = this.findPath(
+          { x: Math.floor(entity.x), y: Math.floor(entity.y) },
+          pathData.targetPosition,
+          entityId
+        );
+        
+        // Update the entity's path in your game
+        if (result.found) {
+          entity.setPath(result.path);
+        }
+      }
+    }
   }
   
-  // Find a path from start to goal
+  /**
+   * Find a path for an entity
+   */
   findPath(
-    entityId: string,
     start: GridPosition,
     goal: GridPosition,
-    color: string = '#ff0000'
+    entityId?: string
   ): PathResult {
-    // Find the path
-    const result = this.pathfinder.findPath(start.x, start.y, goal.x, goal.y, true);
+    // Check if positions are valid
+    if (!this.isWalkable(goal.x, goal.y)) {
+      // Try to find a nearby walkable position
+      const alternateGoal = this.findNearestWalkable(goal.x, goal.y);
+      if (alternateGoal) {
+        console.log(`Target position (${goal.x}, ${goal.y}) is unwalkable! Finding alternate target.`);
+        console.log(`Adjusted target to (${alternateGoal.x}, ${alternateGoal.y})`);
+        goal = alternateGoal;
+      }
+    }
     
-    // Store the path for visualization
-    if (result.found) {
+    // Find path
+    const result = this.pathfinder.findPath(
+      start.x, start.y,
+      goal.x, goal.y,
+      true  // Use smoothing
+    );
+    
+    // Store path if entity ID is provided
+    if (entityId && result.found) {
       this.activePaths.set(entityId, {
         path: result.path,
-        color
+        targetPosition: goal
       });
-    } else {
-      // Remove the path if not found
-      this.activePaths.delete(entityId);
     }
     
     return result;
   }
   
-  // Check if a position is walkable
+  /**
+   * Check if a position is walkable
+   */
   isWalkable(x: number, y: number): boolean {
     return this.grid.isWalkable(x, y);
   }
   
-  // Find a valid position near a point (useful for AI behaviors)
+  /**
+   * Find the nearest walkable position to coordinates
+   */
   findNearestWalkable(x: number, y: number, radius: number = 5): GridPosition | null {
-    return this.grid.findNearestWalkable(x, y, radius);
+    // Check the original position first
+    if (this.isWalkable(x, y)) {
+      return { x, y };
+    }
+    
+    // Search in expanding radius
+    for (let r = 1; r <= radius; r++) {
+      // Check all positions at the current radius
+      for (let dx = -r; dx <= r; dx++) {
+        for (let dy = -r; dy <= r; dy++) {
+          // Only check positions at the current radius (not inside it)
+          if (Math.abs(dx) === r || Math.abs(dy) === r) {
+            const newX = x + dx;
+            const newY = y + dy;
+            
+            if (this.isWalkable(newX, newY)) {
+              return { x: newX, y: newY };
+            }
+          }
+        }
+      }
+    }
+    
+    return null;
   }
   
-  // Get all active paths for visualization
+  /**
+   * Get all active paths
+   */
   getActivePaths() {
-    return Array.from(this.activePaths.entries()).map(([entityId, { path, color }]) => ({
-      entityId,
-      path,
-      color
-    }));
+    return this.activePaths;
   }
   
-  // Clear a specific path
+  /**
+   * Clear a specific entity's path
+   */
   clearPath(entityId: string) {
     this.activePaths.delete(entityId);
   }
   
-  // Clear all paths
+  /**
+   * Clear all paths
+   */
   clearAllPaths() {
     this.activePaths.clear();
   }
 }
 
-// Now, let's create a hook that will replace usePathfinding.ts
+/**
+ * Factory function to create a custom hook for your game
+ */
 function createUsePathfinding(gridStore: any) {
-  // Create a singleton instance of the pathfinding service
   const pathfindingService = new GamePathfindingService(gridStore);
   
-  // Return a hook-like function that provides the same interface as before
+  // Return a function that matches your existing hook interface
   return () => {
     return {
-      findPath: pathfindingService.findPath.bind(pathfindingService),
-      isWalkable: pathfindingService.isWalkable.bind(pathfindingService),
-      findNearestWalkable: pathfindingService.findNearestWalkable.bind(pathfindingService),
-      getActivePaths: pathfindingService.getActivePaths.bind(pathfindingService),
-      clearPath: pathfindingService.clearPath.bind(pathfindingService),
-      clearAllPaths: pathfindingService.clearAllPaths.bind(pathfindingService)
+      findPath: (start: GridPosition, goal: GridPosition, entityId?: string) => {
+        return pathfindingService.findPath(start, goal, entityId);
+      },
+      
+      clearPath: (entityId: string) => {
+        pathfindingService.clearPath(entityId);
+      },
+      
+      clearAllPaths: () => {
+        pathfindingService.clearAllPaths();
+      },
+      
+      isWalkable: (x: number, y: number) => {
+        return pathfindingService.isWalkable(x, y);
+      },
+      
+      findNearestWalkable: (x: number, y: number, radius?: number) => {
+        return pathfindingService.findNearestWalkable(x, y, radius);
+      }
     };
   };
 }
 
-// Example of how to use this with your AI controller
+/**
+ * Example of updating an AI controller with the pathfinding service
+ */
 function updateAIControllerExample(
-  npc: any,
-  pathfinding: ReturnType<ReturnType<typeof createUsePathfinding>>,
-  deltaTime: number
+  entity: any,
+  targetPosition: { x: number, y: number },
+  pathfindingService: GamePathfindingService
 ) {
-  // This mimics what you do in AIController.ts
+  // Get current entity position
+  const start = { x: Math.floor(entity.x), y: Math.floor(entity.y) };
   
-  // Update path if needed
-  if (npc.needsNewPath) {
-    const startPos = { x: npc.position.x, y: npc.position.y };
-    const goalPos = { x: npc.targetPosition.x, y: npc.targetPosition.y };
-    
-    // Use the new pathfinding service
-    const result = pathfinding.findPath(npc.id, startPos, goalPos, '#0000ff');
-    
-    if (result.found) {
-      npc.currentPath = result.path;
-      npc.currentPathIndex = 0;
-    } else {
-      // Try to find a valid position nearby if original goal is unreachable
-      const nearbyPos = pathfinding.findNearestWalkable(goalPos.x, goalPos.y, 5);
-      
-      if (nearbyPos) {
-        const alternativeResult = pathfinding.findPath(
-          npc.id,
-          startPos,
-          nearbyPos,
-          '#0000ff'
-        );
-        
-        if (alternativeResult.found) {
-          npc.currentPath = alternativeResult.path;
-          npc.currentPathIndex = 0;
-        } else {
-          console.warn(`No path found for NPC ${npc.id}`);
-        }
-      }
-    }
-    
-    npc.needsNewPath = false;
-  }
+  // Find path to target
+  const result = pathfindingService.findPath(start, targetPosition, entity.id);
   
-  // Follow the path if we have one
-  if (npc.currentPath && npc.currentPath.length > 0 && npc.currentPathIndex < npc.currentPath.length) {
-    const nextPoint = npc.currentPath[npc.currentPathIndex];
-    
-    // Calculate distance to next point
-    const dx = nextPoint.x - npc.position.x;
-    const dy = nextPoint.y - npc.position.y;
-    const distanceToNext = Math.sqrt(dx * dx + dy * dy);
-    
-    // Move towards the next point
-    if (distanceToNext > 0.1) {
-      const moveSpeed = npc.speed * deltaTime;
-      const moveRatio = Math.min(moveSpeed / distanceToNext, 1);
-      
-      const newX = npc.position.x + dx * moveRatio;
-      const newY = npc.position.y + dy * moveRatio;
-      
-      // Validate the new position
-      if (pathfinding.isWalkable(Math.round(newX), Math.round(newY))) {
-        npc.position.x = newX;
-        npc.position.y = newY;
-        
-        // Update pixel position for rendering
-        npc.pixelPosition = {
-          x: newX * 32, // Assuming 32 is your tile size
-          y: newY * 32
-        };
-      }
-    } else {
-      // Reached this point, move to the next one
-      npc.currentPathIndex++;
-    }
+  if (result.found) {
+    // Update entity with path
+    entity.currentPath = result.path;
+    entity.currentPathIndex = 0;
+    entity.isFollowingPath = true;
+  } else {
+    console.log(`No path found for entity ${entity.id} to (${targetPosition.x}, ${targetPosition.y})`);
+    entity.isFollowingPath = false;
   }
 }
 
-// Example of how to render paths
+/**
+ * Example of rendering paths in your game
+ */
 function renderPathsExample(
   context: CanvasRenderingContext2D,
-  pathfinding: ReturnType<ReturnType<typeof createUsePathfinding>>,
+  camera: { x: number, y: number, zoom: number },
   tileSize: number,
-  cameraOffset: { x: number, y: number }
+  pathfindingService: GamePathfindingService
 ) {
-  const paths = pathfinding.getActivePaths();
+  // Set path drawing style
+  context.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+  context.lineWidth = 2;
   
-  for (const { path, color } of paths) {
+  // Get all active paths
+  const activePaths = pathfindingService.getActivePaths();
+  
+  // Render each path
+  for (const [entityId, pathData] of activePaths) {
+    const { path } = pathData;
+    
     if (path.length > 1) {
-      context.strokeStyle = color;
-      context.lineWidth = 2;
       context.beginPath();
       
-      // Adjust for camera offset
-      const firstPoint = path[0];
-      context.moveTo(
-        firstPoint.x * tileSize - cameraOffset.x,
-        firstPoint.y * tileSize - cameraOffset.y
-      );
+      // Move to first point
+      const startX = (path[0].x * tileSize - camera.x) * camera.zoom;
+      const startY = (path[0].y * tileSize - camera.y) * camera.zoom;
+      context.moveTo(startX, startY);
       
+      // Draw line to each subsequent point
       for (let i = 1; i < path.length; i++) {
-        const point = path[i];
-        context.lineTo(
-          point.x * tileSize - cameraOffset.x,
-          point.y * tileSize - cameraOffset.y
-        );
+        const x = (path[i].x * tileSize - camera.x) * camera.zoom;
+        const y = (path[i].y * tileSize - camera.y) * camera.zoom;
+        context.lineTo(x, y);
       }
       
       context.stroke();
+      
+      // Draw points at each path position
+      context.fillStyle = 'rgba(255, 255, 0, 0.7)';
+      for (const point of path) {
+        const x = (point.x * tileSize - camera.x) * camera.zoom;
+        const y = (point.y * tileSize - camera.y) * camera.zoom;
+        context.beginPath();
+        context.arc(x, y, 3, 0, Math.PI * 2);
+        context.fill();
+      }
     }
   }
 }

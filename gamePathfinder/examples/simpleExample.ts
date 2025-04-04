@@ -1,77 +1,109 @@
 import { createPathfinder, Grid } from '../src';
 
-// Create a simple grid
-const gridWidth = 10;
-const gridHeight = 10;
-const grid = new Grid(gridWidth, gridHeight);
+/**
+ * Basic example showing how to use the pathfinder
+ */
 
-// Set up some walls as obstacles
-for (let x = 3; x <= 6; x++) {
-  grid.setWalkable(x, 4, false);
-}
+// Create a new grid
+const width = 10;
+const height = 10;
+const grid = new Grid(width, height);
 
-for (let y = 5; y <= 7; y++) {
-  grid.setWalkable(3, y, false);
-}
+// Add some obstacles to the grid
+grid.setWalkable(2, 2, false);
+grid.setWalkable(2, 3, false);
+grid.setWalkable(2, 4, false);
+grid.setWalkable(2, 5, false);
+grid.setWalkable(2, 6, false);
+grid.setWalkable(3, 6, false);
+grid.setWalkable(4, 6, false);
+grid.setWalkable(5, 6, false);
+grid.setWalkable(6, 6, false);
+grid.setWalkable(7, 6, false);
+grid.setWalkable(7, 5, false);
+grid.setWalkable(7, 4, false);
+grid.setWalkable(7, 3, false);
+grid.setWalkable(7, 2, false);
 
-// Create a pathfinder
-const { pathfinder, findPath, smoother } = createPathfinder(grid, {
-  allowDiagonals: true,
-  cutCorners: false,
-  heuristic: 'manhattan'
-});
+// Create a pathfinder with default options
+const { findPath } = createPathfinder(grid);
 
-// Find a path
-const startX = 1;
-const startY = 1;
-const goalX = 8;
-const goalY = 8;
+// Find a path from (1,1) to (8,8)
+const result = findPath(1, 1, 8, 8);
 
-console.log(`Finding path from (${startX}, ${startY}) to (${goalX}, ${goalY})...`);
+// Display the result
+console.log('Path found:', result.found);
+console.log('Path length:', result.length);
+console.log('Nodes explored:', result.explored);
+console.log('Time taken:', result.time, 'ms');
 
-const result = findPath(startX, startY, goalX, goalY, true);
-
+// Display the path
 if (result.found) {
-  console.log('Path found!');
-  console.log('Path:', result.path);
-  console.log('Path length:', result.length);
-  console.log('Calculation time:', result.time, 'ms');
-  
-  // Display the grid with the path
-  displayGridWithPath(grid, result.path);
-} else {
-  console.log('No path found.');
-  console.log('Nodes explored:', result.explored);
-  console.log('Calculation time:', result.time, 'ms');
+  console.log('Path:');
+  for (const point of result.path) {
+    console.log(`  (${point.x}, ${point.y})`);
+  }
 }
 
-// Helper function to display the grid with the path
+// Helper function to visualize the grid with the path
 function displayGridWithPath(grid: Grid, path: Array<{x: number, y: number}>) {
-  const gridData = Array(grid.getHeight()).fill(0)
-    .map(() => Array(grid.getWidth()).fill('.'));
+  const symbols = {
+    walkable: '.',   // Walkable cell
+    obstacle: '█',   // Obstacle
+    path: '●',       // Path cell
+    start: 'S',      // Start position
+    goal: 'G'        // Goal position
+  };
   
-  // Mark obstacles
+  let output = '';
+  
   for (let y = 0; y < grid.getHeight(); y++) {
+    let row = '';
     for (let x = 0; x < grid.getWidth(); x++) {
-      if (!grid.isWalkable(x, y)) {
-        gridData[y][x] = '#';
+      // Check if this is the start or goal position
+      if (path.length > 0 && x === path[0].x && y === path[0].y) {
+        row += symbols.start;
+      } else if (path.length > 0 && x === path[path.length - 1].x && y === path[path.length - 1].y) {
+        row += symbols.goal;
+      } 
+      // Check if this position is part of the path
+      else if (path.some(p => p.x === x && p.y === y)) {
+        row += symbols.path;
+      } 
+      // Otherwise show walkable or obstacle
+      else if (grid.isWalkable(x, y)) {
+        row += symbols.walkable;
+      } else {
+        row += symbols.obstacle;
       }
     }
+    output += row + '\n';
   }
   
-  // Mark path
-  for (let i = 0; i < path.length; i++) {
-    const { x, y } = path[i];
-    
-    if (i === 0) {
-      gridData[y][x] = 'S'; // Start
-    } else if (i === path.length - 1) {
-      gridData[y][x] = 'G'; // Goal
-    } else {
-      gridData[y][x] = '*'; // Path
-    }
-  }
-  
-  // Display the grid
-  console.log(gridData.map(row => row.join(' ')).join('\n'));
+  console.log(output);
 }
+
+// Display the grid with the path
+console.log('\nGrid visualization:');
+displayGridWithPath(grid, result.path);
+
+// Example of finding a path with obstacles in the way
+console.log('\nExample with no path available:');
+// Block the only passage
+grid.setWalkable(5, 0, false);
+grid.setWalkable(5, 1, false);
+grid.setWalkable(5, 2, false);
+grid.setWalkable(5, 3, false);
+grid.setWalkable(5, 4, false);
+grid.setWalkable(5, 5, false);
+grid.setWalkable(5, 7, false);
+grid.setWalkable(5, 8, false);
+grid.setWalkable(5, 9, false);
+
+// Try to find a path again
+const blockedResult = findPath(1, 1, 8, 8);
+console.log('Path found:', blockedResult.found);
+console.log('Nodes explored:', blockedResult.explored);
+
+// Display the grid with no path
+displayGridWithPath(grid, blockedResult.path);
