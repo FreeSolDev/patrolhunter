@@ -5,6 +5,25 @@ import { useEntityStore } from "../../stores/useEntityStore";
 import { useGridStore } from "../../stores/useGridStore";
 import { hasLineOfSight, distanceBetween } from "../../utils";
 
+// Helper function to check if a position is valid (in bounds and walkable)
+const isValidPosition = (pos: GridPosition): boolean => {
+  const { grid } = useGridStore.getState();
+  
+  if (!grid || grid.length === 0) return false;
+  
+  // Round positions to handle decimal values
+  const x = Math.round(pos.x);
+  const y = Math.round(pos.y);
+  
+  return (
+    x >= 0 && 
+    x < grid[0].length &&
+    y >= 0 && 
+    y < grid.length &&
+    grid[y][x] // Check if the tile is walkable
+  );
+};
+
 /**
  * Merchant behavior implementation
  * - Travels between various hotspots on the map
@@ -27,6 +46,11 @@ export class MerchantBehavior implements StateMachine {
   private wanderTimeMax: number = 3; // Seconds to wander before choosing a new spot
   private wanderRadius: number = 3; // Max distance to wander from hotspot center
   
+  // Stuck detection
+  private lastPosition: GridPosition = { x: 0, y: 0 };
+  private stuckTime: number = 0;
+  private stuckThreshold: number = 3; // If we don't move for 3 seconds, consider stuck
+  
   // Threat detection
   private detectionRadius: number = 7; // Distance at which merchant can detect danger
   private fearRadius: number = 5; // Distance that causes immediate fear reaction
@@ -42,6 +66,7 @@ export class MerchantBehavior implements StateMachine {
   constructor(npc: NPC) {
     this.npc = npc;
     this.currentState = MerchantState.TRAVEL;
+    this.lastPosition = { ...npc.position }; // Initialize last position for stuck detection
     this.initializeHotspots();
     this.setInitialDestination();
   }
@@ -125,8 +150,34 @@ export class MerchantBehavior implements StateMachine {
     // Process based on current state
     switch (this.currentState) {
       case MerchantState.TRAVEL:
-        // Set destination to current hotspot
-        this.npc.targetPosition = { ...this.hotspots[this.currentHotspotIndex] };
+        {
+          // Set destination to current hotspot
+          const targetHotspot = this.hotspots[this.currentHotspotIndex];
+          
+          // Validate the target position
+          if (!isValidPosition(targetHotspot)) {
+            console.log(`Invalid hotspot target for merchant ${this.npc.id}, finding alternative`);
+            
+            // Try to find a valid position nearby
+            const validPos = this.findValidPositionNear(targetHotspot);
+            if (validPos) {
+              this.npc.targetPosition = validPos;
+            } else {
+              // If we can't find a valid position, move to the next hotspot and update logic
+              this.currentHotspotIndex = (this.currentHotspotIndex + 1) % this.hotspots.length;
+              this.currentState = MerchantState.TRAVEL; // Re-trigger TRAVEL state evaluation in next update
+            }
+          } else {
+            this.npc.targetPosition = { ...targetHotspot };
+          }
+        }
+        
+        // Check if we're stuck - if we haven't moved in a while
+        if (this.isStuck()) {
+          console.log(`Merchant ${this.npc.id} is stuck, trying next hotspot`);
+          this.currentHotspotIndex = (this.currentHotspotIndex + 1) % this.hotspots.length;
+          break;
+        }
         
         // Check if we've reached the current hotspot
         const distToHotspot = this.distanceTo(this.npc.targetPosition);
@@ -134,6 +185,8 @@ export class MerchantBehavior implements StateMachine {
           // Start trading at this hotspot
           this.currentState = MerchantState.TRADE;
           this.tradeTime = this.tradeTimeMax;
+          // Reset stuck detection since we reached our destination
+          this.clearStuckDetection();
         }
         
         // If we detect threat but it's not immediate danger, alert guards
@@ -300,15 +353,35 @@ export class MerchantBehavior implements StateMachine {
     const currentHotspot = this.hotspots[this.currentHotspotIndex];
     const { width, height } = useGridStore.getState().gridSize;
     
-    // Calculate random offset within wander radius
-    const offsetX = (Math.random() * 2 - 1) * this.wanderRadius;
-    const offsetY = (Math.random() * 2 - 1) * this.wanderRadius;
+    // Try up to 5 times to find a valid wander position
+    for (let attempts = 0; attempts < 5; attempts++) {
+      // Calculate random offset within wander radius
+      const offsetX = (Math.random() * 2 - 1) * this.wanderRadius;
+      const offsetY = (Math.random() * 2 - 1) * this.wanderRadius;
+      
+      // Calculate new target position and clamp to grid boundaries
+      const targetX = Math.min(width - 1, Math.max(0, currentHotspot.x + offsetX));
+      const targetY = Math.min(height - 1, Math.max(0, currentHotspot.y + offsetY));
+      
+      // Test if this is a valid position
+      if (isValidPosition({ x: targetX, y: targetY })) {
+        this.npc.targetPosition = { x: targetX, y: targetY };
+        return;
+      }
+    }
     
-    // Calculate new target position and clamp to grid boundaries
-    const targetX = Math.min(width - 1, Math.max(0, currentHotspot.x + offsetX));
-    const targetY = Math.min(height - 1, Math.max(0, currentHotspot.y + offsetY));
-    
-    this.npc.targetPosition = { x: targetX, y: targetY };
+    // If we can't find a valid random position, try to find any valid position nearby
+    const validPos = this.findValidPositionNear(currentHotspot);
+    if (validPos) {
+      this.npc.targetPosition = validPos;
+    } else {
+      // If we still can't find a valid position, just stay put
+      this.npc.targetPosition = { ...this.npc.position };
+      
+      // Force a state change to try a different hotspot
+      this.currentHotspotIndex = (this.currentHotspotIndex + 1) % this.hotspots.length;
+      this.currentState = MerchantState.TRAVEL;
+    }
   }
   
   /**
@@ -344,6 +417,70 @@ export class MerchantBehavior implements StateMachine {
       Math.pow(this.npc.position.x - position.x, 2) +
       Math.pow(this.npc.position.y - position.y, 2)
     );
+  }
+  
+  /**
+   * Check if the NPC is stuck
+   */
+  private isStuck(): boolean {
+    // Update stuck detection
+    const distanceMoved = distanceBetween(this.npc.position, this.lastPosition);
+    
+    if (distanceMoved < 0.05) {
+      // We're not moving, increment stuck time
+      this.stuckTime += 0.1; // Add a small increment
+      
+      if (this.stuckTime >= this.stuckThreshold) {
+        // We've been stuck too long, take action
+        this.clearStuckDetection();
+        return true;
+      }
+    } else {
+      // We're moving, reset stuck time
+      this.clearStuckDetection();
+    }
+    
+    // Update last position for next check
+    this.lastPosition = { ...this.npc.position };
+    
+    return false;
+  }
+  
+  /**
+   * Clear stuck detection state
+   */
+  private clearStuckDetection(): void {
+    this.stuckTime = 0;
+    this.lastPosition = { ...this.npc.position };
+  }
+  
+  /**
+   * Find a valid walkable position near the given position
+   */
+  private findValidPositionNear(pos: GridPosition): GridPosition | null {
+    const { width, height } = useGridStore.getState().gridSize;
+    const searchRadius = 5; // How far to search for a valid position
+    
+    // Try positions in increasing distance from the target
+    for (let radius = 1; radius <= searchRadius; radius++) {
+      for (let offsetX = -radius; offsetX <= radius; offsetX++) {
+        for (let offsetY = -radius; offsetY <= radius; offsetY++) {
+          // Skip positions that aren't on the radius boundary
+          if (Math.abs(offsetX) !== radius && Math.abs(offsetY) !== radius) continue;
+          
+          const testX = Math.round(pos.x + offsetX);
+          const testY = Math.round(pos.y + offsetY);
+          
+          // Check if this position is valid
+          if (isValidPosition({ x: testX, y: testY })) {
+            return { x: testX, y: testY };
+          }
+        }
+      }
+    }
+    
+    // Couldn't find a valid position
+    return null;
   }
   
   /**
