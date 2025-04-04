@@ -4,6 +4,7 @@ import { GridPosition, NPC } from "../../types";
 import { useEntityStore } from "../../stores/useEntityStore";
 import { useGridStore } from "../../stores/useGridStore";
 import { useAudio } from "../../stores/useAudio";
+import { hasLineOfSight, distanceBetween } from "../../utils";
 
 export class GuardBehavior implements StateMachine {
   private npc: NPC;
@@ -11,12 +12,16 @@ export class GuardBehavior implements StateMachine {
   private patrolPoints: GridPosition[] = [];
   private currentPatrolIndex: number = 0;
   private detectionRadius: number = 5;
+  private visualRadius: number = 7; // How far the guard can see
   private attackRange: number = 1.5;
   private attackCooldown: number = 0;
   private attackCooldownMax: number = 2;
   private retreatDistance: number = 3;
   private coordinationTimer: number = 0;
   private coordinationInterval: number = 1.5;
+  private lastKnownPlayerPosition: GridPosition | null = null;
+  private timeWithoutVisual: number = 0;
+  private maxTimeWithoutVisual: number = 4; // Time in seconds before giving up search
   
   constructor(npc: NPC) {
     this.npc = npc;
@@ -62,12 +67,22 @@ export class GuardBehavior implements StateMachine {
     const player = useEntityStore.getState().player;
     const { npcs } = useEntityStore.getState();
     
-    // Always check for player proximity, regardless of current state
+    // Calculate distance to player
     const distanceToPlayer = player ? 
-      Math.sqrt(
-        Math.pow(this.npc.position.x - player.position.x, 2) +
-        Math.pow(this.npc.position.y - player.position.y, 2)
-      ) : Infinity;
+      distanceBetween(this.npc.position, player.position) : Infinity;
+    
+    // Check line of sight to player
+    const hasVisualOnPlayer = player && 
+                            distanceToPlayer < this.visualRadius && 
+                            hasLineOfSight(this.npc.position, player.position);
+    
+    // Update time without visual if needed
+    if (hasVisualOnPlayer) {
+      this.timeWithoutVisual = 0;
+      this.lastKnownPlayerPosition = { ...player.position };
+    } else if (this.lastKnownPlayerPosition) {
+      this.timeWithoutVisual += deltaTime;
+    }
     
     // Process the current state
     switch (this.currentState) {
@@ -82,15 +97,15 @@ export class GuardBehavior implements StateMachine {
           this.currentPatrolIndex = (this.currentPatrolIndex + 1) % this.patrolPoints.length;
         }
         
-        // If player is in monster form and within detection radius, switch to attack
-        if (player && player.isMonster && distanceToPlayer < this.detectionRadius) {
+        // If player is in monster form and visible, switch to attack
+        if (player && player.isMonster && hasVisualOnPlayer && distanceToPlayer < this.detectionRadius) {
           this.currentState = GuardState.ATTACK;
         }
         break;
         
       case GuardState.INVESTIGATE:
         // If player is visible and in monster form, attack
-        if (player && player.isMonster && distanceToPlayer < this.detectionRadius) {
+        if (player && player.isMonster && hasVisualOnPlayer && distanceToPlayer < this.detectionRadius) {
           this.currentState = GuardState.ATTACK;
         } 
         // If we're at investigation point, return to patrol
@@ -107,7 +122,7 @@ export class GuardBehavior implements StateMachine {
         
         // Try to coordinate with nearby guards of the same group
         if (this.coordinationTimer >= this.coordinationInterval) {
-          this.coordinateWithOtherGuards(npcs);
+          this.coordinateWithOtherGuards(npcs, hasVisualOnPlayer);
           this.coordinationTimer = 0;
         }
         
@@ -117,11 +132,35 @@ export class GuardBehavior implements StateMachine {
           break;
         }
         
-        // Set player position as target
-        this.npc.targetPosition = { ...player.position };
+        // If we have line of sight, update target to current player position
+        if (hasVisualOnPlayer) {
+          this.npc.targetPosition = { ...player.position };
+        } 
+        // If we've lost sight but recently saw the player, go to last known position
+        else if (this.lastKnownPlayerPosition && this.timeWithoutVisual < this.maxTimeWithoutVisual) {
+          this.npc.targetPosition = { ...this.lastKnownPlayerPosition };
+          
+          // If we reach the last known position and still don't see the player, investigate around
+          if (this.distanceTo(this.lastKnownPlayerPosition) < 0.5) {
+            this.currentState = GuardState.INVESTIGATE;
+            // Choose a random direction to investigate from last known position
+            const angle = Math.random() * Math.PI * 2;
+            const { width, height } = useGridStore.getState().gridSize;
+            this.npc.targetPosition = {
+              x: Math.min(width - 1, Math.max(0, this.lastKnownPlayerPosition.x + Math.cos(angle) * 2)),
+              y: Math.min(height - 1, Math.max(0, this.lastKnownPlayerPosition.y + Math.sin(angle) * 2))
+            };
+          }
+        } 
+        // If we've lost track of player for too long, go back to patrolling
+        else if (this.timeWithoutVisual >= this.maxTimeWithoutVisual) {
+          this.currentState = GuardState.PATROL;
+          this.lastKnownPlayerPosition = null;
+          break;
+        }
         
         // If we're close enough to attack and cooldown is over, perform attack
-        if (distanceToPlayer <= this.attackRange && this.attackCooldown <= 0) {
+        if (hasVisualOnPlayer && distanceToPlayer <= this.attackRange && this.attackCooldown <= 0) {
           this.attackPlayer();
           this.currentState = GuardState.RETREAT;
         }
@@ -133,9 +172,14 @@ export class GuardBehavior implements StateMachine {
           break;
         }
         
+        // Always retreat away from player's last known position
+        const retreatFromPos = hasVisualOnPlayer ? 
+                            player.position : 
+                            (this.lastKnownPlayerPosition || player.position);
+        
         // Calculate retreat direction (away from player)
-        const retreatX = this.npc.position.x + (this.npc.position.x - player.position.x) * 0.5;
-        const retreatY = this.npc.position.y + (this.npc.position.y - player.position.y) * 0.5;
+        const retreatX = this.npc.position.x + (this.npc.position.x - retreatFromPos.x) * 0.5;
+        const retreatY = this.npc.position.y + (this.npc.position.y - retreatFromPos.y) * 0.5;
         
         // Clamp to grid boundaries
         const { width, height } = useGridStore.getState().gridSize;
@@ -144,22 +188,37 @@ export class GuardBehavior implements StateMachine {
           y: Math.min(height - 1, Math.max(0, retreatY))
         };
         
-        // If we've retreated enough or the player is not in monster form, go back to patrol
-        if (distanceToPlayer > this.retreatDistance || !player.isMonster) {
-          this.currentState = GuardState.PATROL;
+        // If we've retreated enough, lost visual, or the player is not in monster form, go back to patrol
+        if (
+          !hasVisualOnPlayer || 
+          distanceToPlayer > this.retreatDistance || 
+          !player.isMonster
+        ) {
+          // If we still know player is a monster and around somewhere, go to coordinate
+          if (player.isMonster && this.lastKnownPlayerPosition && this.timeWithoutVisual < this.maxTimeWithoutVisual) {
+            this.currentState = GuardState.COORDINATE;
+          } else {
+            this.currentState = GuardState.PATROL;
+          }
         }
         break;
         
       case GuardState.COORDINATE:
         // Coordinate with other guards, then return to previous behavior
-        this.coordinateWithOtherGuards(npcs);
-        this.currentState = GuardState.ATTACK;
+        this.coordinateWithOtherGuards(npcs, hasVisualOnPlayer);
+        
+        // If we have visual, attack; otherwise investigate
+        if (hasVisualOnPlayer && player && player.isMonster) {
+          this.currentState = GuardState.ATTACK;
+        } else {
+          this.currentState = GuardState.INVESTIGATE;
+        }
         break;
     }
   }
   
   // Find other guards in the same group and coordinate attacks
-  private coordinateWithOtherGuards(npcs: NPC[]): void {
+  private coordinateWithOtherGuards(npcs: NPC[], hasVisualOnPlayer: boolean = false): void {
     if (!this.npc.groupId) return;
     
     const player = useEntityStore.getState().player;
@@ -176,26 +235,48 @@ export class GuardBehavior implements StateMachine {
         // Find guards to flank from different angles
         const targetPositions: GridPosition[] = [];
         
-        // Calculate positions around the player for flanking
-        const flankDistance = 2;
-        const angles = [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2];
-        
-        for (let i = 0; i < angles.length; i++) {
-          const x = player.position.x + Math.cos(angles[i]) * flankDistance;
-          const y = player.position.y + Math.sin(angles[i]) * flankDistance;
+        // Use different strategies based on whether the player is visible
+        if (hasVisualOnPlayer) {
+          // Direct flanking when player is visible - surround from all sides
+          const flankDistance = 2;
+          const angles = [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2];
           
-          const { width, height } = useGridStore.getState().gridSize;
-          targetPositions.push({
-            x: Math.min(width - 1, Math.max(0, x)),
-            y: Math.min(height - 1, Math.max(0, y))
-          });
+          for (let i = 0; i < angles.length; i++) {
+            const x = player.position.x + Math.cos(angles[i]) * flankDistance;
+            const y = player.position.y + Math.sin(angles[i]) * flankDistance;
+            
+            const { width, height } = useGridStore.getState().gridSize;
+            targetPositions.push({
+              x: Math.min(width - 1, Math.max(0, x)),
+              y: Math.min(height - 1, Math.max(0, y))
+            });
+          }
+        } else if (this.lastKnownPlayerPosition) {
+          // Search pattern when player is not visible but was recently seen
+          // Guards spread out in a wider search pattern around last known position
+          const searchRadius = 4;
+          const numPoints = Math.min(guardsInGroup.length + 1, 6); // +1 includes this guard
+          
+          for (let i = 0; i < numPoints; i++) {
+            const angle = (i / numPoints) * Math.PI * 2;
+            const x = this.lastKnownPlayerPosition.x + Math.cos(angle) * searchRadius;
+            const y = this.lastKnownPlayerPosition.y + Math.sin(angle) * searchRadius;
+            
+            const { width, height } = useGridStore.getState().gridSize;
+            targetPositions.push({
+              x: Math.min(width - 1, Math.max(0, x)),
+              y: Math.min(height - 1, Math.max(0, y))
+            });
+          }
         }
         
-        // Assign flanking positions to guards
+        // Assign positions to guards
         guardsInGroup.forEach((guard, index) => {
-          const targetIndex = index % targetPositions.length;
-          const { updateNPCTarget } = useEntityStore.getState();
-          updateNPCTarget(guard.id, targetPositions[targetIndex]);
+          if (targetPositions.length > 0) {
+            const targetIndex = index % targetPositions.length;
+            const { updateNPCTarget } = useEntityStore.getState();
+            updateNPCTarget(guard.id, targetPositions[targetIndex]);
+          }
         });
       }
     }

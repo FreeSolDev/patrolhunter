@@ -4,6 +4,7 @@ import { GridPosition, NPC } from "../../types";
 import { useEntityStore } from "../../stores/useEntityStore";
 import { useGridStore } from "../../stores/useGridStore";
 import { useAudio } from "../../stores/useAudio";
+import { hasLineOfSight, distanceBetween } from "../../utils";
 
 export class HunterBehavior implements StateMachine {
   private npc: NPC;
@@ -11,6 +12,7 @@ export class HunterBehavior implements StateMachine {
   private huntPoints: GridPosition[] = [];
   private currentHuntIndex: number = 0;
   private detectionRadius: number = 6;
+  private visualRadius: number = 8; // How far the hunter can see
   private attackRange: number = 1.5;
   private attackCooldown: number = 0;
   private attackCooldownMax: number = 2;
@@ -18,6 +20,9 @@ export class HunterBehavior implements StateMachine {
   private retreatCooldownMax: number = 3;
   private waitTime: number = 0;
   private waitTimeMax: number = 2;
+  private lastKnownPlayerPosition: GridPosition | null = null;
+  private timeWithoutVisual: number = 0;
+  private maxTimeWithoutVisual: number = 3; // Time in seconds before giving up search
   
   constructor(npc: NPC) {
     this.npc = npc;
@@ -48,12 +53,22 @@ export class HunterBehavior implements StateMachine {
     
     const player = useEntityStore.getState().player;
     
-    // Always check for player proximity
+    // Calculate distance and line of sight to player
     const distanceToPlayer = player ? 
-      Math.sqrt(
-        Math.pow(this.npc.position.x - player.position.x, 2) +
-        Math.pow(this.npc.position.y - player.position.y, 2)
-      ) : Infinity;
+      distanceBetween(this.npc.position, player.position) : Infinity;
+      
+    // Check line of sight to player
+    const hasVisualOnPlayer = player && 
+                            distanceToPlayer < this.visualRadius && 
+                            hasLineOfSight(this.npc.position, player.position);
+    
+    // Update time without visual if needed
+    if (hasVisualOnPlayer) {
+      this.timeWithoutVisual = 0;
+      this.lastKnownPlayerPosition = { ...player.position };
+    } else if (this.lastKnownPlayerPosition) {
+      this.timeWithoutVisual += deltaTime;
+    }
     
     // Process the current state
     switch (this.currentState) {
@@ -68,8 +83,8 @@ export class HunterBehavior implements StateMachine {
           this.currentHuntIndex = (this.currentHuntIndex + 1) % this.huntPoints.length;
         }
         
-        // If player is detected, attack or engage based on form
-        if (player && distanceToPlayer < this.detectionRadius) {
+        // If player is detected and visible, attack or engage based on form
+        if (player && hasVisualOnPlayer && distanceToPlayer < this.detectionRadius) {
           if (player.isMonster) {
             this.currentState = HunterState.ATTACK_MONSTER;
           } else {
@@ -90,11 +105,23 @@ export class HunterBehavior implements StateMachine {
           break;
         }
         
-        // Set player position as target
-        this.npc.targetPosition = { ...player.position };
+        // If we have line of sight, update target to current player position
+        if (hasVisualOnPlayer) {
+          this.npc.targetPosition = { ...player.position };
+        } 
+        // If we've lost sight but recently saw the player, go to last known position
+        else if (this.lastKnownPlayerPosition && this.timeWithoutVisual < this.maxTimeWithoutVisual) {
+          this.npc.targetPosition = { ...this.lastKnownPlayerPosition };
+        } 
+        // If we've lost track of player for too long, go back to hunting
+        else if (this.timeWithoutVisual >= this.maxTimeWithoutVisual) {
+          this.currentState = HunterState.HUNT;
+          this.lastKnownPlayerPosition = null;
+          break;
+        }
         
         // If we're close enough to attack and cooldown is over, perform attack
-        if (distanceToPlayer <= this.attackRange && this.attackCooldown <= 0) {
+        if (hasVisualOnPlayer && distanceToPlayer <= this.attackRange && this.attackCooldown <= 0) {
           this.attackPlayer();
           
           // After attacking in human form, retreat
@@ -115,15 +142,30 @@ export class HunterBehavior implements StateMachine {
           break;
         }
         
-        // Set player position as target
-        this.npc.targetPosition = { ...player.position };
+        // If we have line of sight, update target to current player position
+        if (hasVisualOnPlayer) {
+          this.npc.targetPosition = { ...player.position };
+        } 
+        // If we've lost sight but recently saw the player, go to last known position
+        else if (this.lastKnownPlayerPosition && this.timeWithoutVisual < this.maxTimeWithoutVisual) {
+          this.npc.targetPosition = { ...this.lastKnownPlayerPosition };
+        } 
+        // If we've lost track of player for too long, go back to hunting
+        else if (this.timeWithoutVisual >= this.maxTimeWithoutVisual) {
+          this.currentState = HunterState.HUNT;
+          this.lastKnownPlayerPosition = null;
+          break;
+        }
         
         // If we're close enough to attack and cooldown is over, perform attack
-        if (distanceToPlayer <= this.attackRange && this.attackCooldown <= 0) {
+        if (hasVisualOnPlayer && distanceToPlayer <= this.attackRange && this.attackCooldown <= 0) {
           this.attackPlayer();
           
-          // For monster form, we don't retreat - more aggressive
-          // Just reset attack cooldown and continue pursuing
+          // For monster form, we're still aggressive, but if we lose sight, back off more readily
+          if (!hasVisualOnPlayer && distanceToPlayer > this.attackRange) {
+            this.currentState = HunterState.RETREAT;
+            this.retreatCooldown = this.retreatCooldownMax / 2; // Shorter retreat when lost sight
+          }
         }
         break;
         
@@ -133,9 +175,14 @@ export class HunterBehavior implements StateMachine {
           break;
         }
         
+        // Always retreat away from player's last known position
+        const retreatFromPos = hasVisualOnPlayer ? 
+                             player.position : 
+                             (this.lastKnownPlayerPosition || player.position);
+        
         // Calculate retreat direction (away from player)
-        const retreatX = this.npc.position.x + (this.npc.position.x - player.position.x) * 0.7;
-        const retreatY = this.npc.position.y + (this.npc.position.y - player.position.y) * 0.7;
+        const retreatX = this.npc.position.x + (this.npc.position.x - retreatFromPos.x) * 0.7;
+        const retreatY = this.npc.position.y + (this.npc.position.y - retreatFromPos.y) * 0.7;
         
         // Clamp to grid boundaries
         const { width, height } = useGridStore.getState().gridSize;
@@ -144,8 +191,12 @@ export class HunterBehavior implements StateMachine {
           y: Math.min(height - 1, Math.max(0, retreatY))
         };
         
-        // If we've retreated enough or retreat cooldown is over, wait
-        if (distanceToPlayer > this.detectionRadius || this.retreatCooldown <= 0) {
+        // If we've retreated enough, lost visual, or retreat cooldown is over, wait
+        if (
+          !hasVisualOnPlayer || 
+          distanceToPlayer > this.detectionRadius || 
+          this.retreatCooldown <= 0
+        ) {
           this.currentState = HunterState.WAIT;
           this.waitTime = this.waitTimeMax;
         }
@@ -160,8 +211,8 @@ export class HunterBehavior implements StateMachine {
           this.currentState = HunterState.HUNT;
         }
         
-        // But if player is in monster form and nearby, immediately attack
-        if (player && player.isMonster && distanceToPlayer < this.detectionRadius) {
+        // But if player is in monster form and visible, immediately attack
+        if (player && player.isMonster && hasVisualOnPlayer && distanceToPlayer < this.detectionRadius) {
           this.currentState = HunterState.ATTACK_MONSTER;
         }
         break;
