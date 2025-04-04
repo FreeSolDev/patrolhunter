@@ -5,6 +5,7 @@ import { AIType } from "./AITypes";
 import { GuardBehavior } from "./behaviors/GuardBehavior";
 import { HunterBehavior } from "./behaviors/HunterBehavior";
 import { SurvivorBehavior } from "./behaviors/SurvivorBehavior";
+import { PreserverBehavior } from "./behaviors/PreserverBehavior";
 
 // AI controller that manages behavior state machine for each NPC
 export class AIController {
@@ -31,6 +32,9 @@ export class AIController {
         
       case AIType.SURVIVOR:
         return new SurvivorBehavior(this.npc);
+        
+      case AIType.PRESERVER:
+        return new PreserverBehavior(this.npc);
         
       default:
         // Default to survivor behavior if unknown
@@ -69,16 +73,19 @@ export class AIController {
     let pathColor: string;
     switch (this.npc.type) {
       case AIType.GUARD:
-        pathColor = "#00AA55";
+        pathColor = "#00AA55"; // Green
         break;
       case AIType.HUNTER:
-        pathColor = "#FF5500";
+        pathColor = "#FF5500"; // Orange
         break;
       case AIType.SURVIVOR:
-        pathColor = "#AAAAFF";
+        pathColor = "#AAAAFF"; // Light blue
+        break;
+      case AIType.PRESERVER:
+        pathColor = "#FF00FF"; // Magenta
         break;
       default:
-        pathColor = "#FFFFFF";
+        pathColor = "#FFFFFF"; // White
     }
     
     // Find a new path to the target

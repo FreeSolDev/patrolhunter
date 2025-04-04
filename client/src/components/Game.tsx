@@ -18,6 +18,7 @@ const COLORS = {
   NPC_GUARD: "#00AA55", // Green
   NPC_HUNTER: "#FF5500", // Orange
   NPC_SURVIVOR: "#AAF", // Light blue
+  NPC_PRESERVER: "#FF00FF", // Magenta for Life Preserver Ring attackers
   PATH: "#FFFFFF", // White
   OPEN_SET: "#00FF00", // Green
   CLOSED_SET: "#FF0000", // Red
@@ -87,6 +88,10 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       { position: { x: 5, y: 15 }, type: AIType.SURVIVOR },
       { position: { x: 15, y: 5 }, type: AIType.SURVIVOR },
       { position: { x: 10, y: 15 }, type: AIType.SURVIVOR },
+      
+      // Create some life preserver ring attackers (Type 4)
+      { position: { x: 18, y: 10 }, type: AIType.PRESERVER },
+      { position: { x: 7, y: 18 }, type: AIType.PRESERVER },
     ]);
     
     // Start the game
@@ -417,6 +422,9 @@ const Game = ({ canvasRef, controls }: GameProps) => {
           break;
         case AIType.SURVIVOR:
           color = COLORS.NPC_SURVIVOR;
+          break;
+        case AIType.PRESERVER:
+          color = COLORS.NPC_PRESERVER;
           break;
         default:
           color = "#888888";

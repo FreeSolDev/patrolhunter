@@ -2,7 +2,8 @@
 export enum AIType {
   GUARD = "GUARD",       // Type 1: Guard that patrols and coordinates attacks
   HUNTER = "HUNTER",     // Type 2: Monster hunter with different behaviors based on player form
-  SURVIVOR = "SURVIVOR"  // Type 3: Self-preserving AI focused on survival
+  SURVIVOR = "SURVIVOR", // Type 3: Self-preserving AI focused on survival
+  PRESERVER = "PRESERVER" // Type 4: Life preserver ring attacker that does hit-and-run tactics
 }
 
 // Define AI states for Guard behavior
@@ -29,4 +30,13 @@ export enum SurvivorState {
   FLEE = "Flee",         // Flee from danger
   HIDE = "Hide",         // Hide from threats
   SEEK_SAFETY = "Seek Safety" // Seek safer locations
+}
+
+// Define AI states for Life Preserver Ring attacker behavior
+export enum PreserverState {
+  PATROL = "Patrol",     // Move around looking for targets
+  APPROACH = "Approach", // Approach target for attack
+  ATTACK = "Attack",     // Attack target
+  RETREAT = "Retreat",   // Retreat after attack
+  REPOSITION = "Reposition" // Move to a new attack position
 }
