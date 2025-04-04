@@ -16,6 +16,8 @@ export class AIController {
   private pathUpdateInterval: number = 0.5; // Time in seconds between path updates
   private currentPath: GridPosition[] = [];
   private pathIndex: number = 0;
+  private stuckTime: number = 0; // Keep track of how long NPC might be stuck
+  private stuckThreshold: number = 2.0; // After 2 seconds of no movement, try to resolve
   
   constructor(npc: NPC) {
     this.npc = npc;
@@ -58,8 +60,41 @@ export class AIController {
       this.pathUpdateTime = 0;
     }
     
+    // Check if the NPC has been stuck
+    if (this.stuckTime >= this.stuckThreshold) {
+      this.resolveStuck();
+      this.stuckTime = 0;
+    }
+    
     // Move along the current path if we have one
     this.followPath(deltaTime);
+  }
+  
+  // Try to resolve a stuck NPC
+  private resolveStuck(): void {
+    // Generate a new random target position nearby
+    const TILE_SIZE = 30;
+    const randOffsetX = Math.floor(Math.random() * 7) - 3; // -3 to 3
+    const randOffsetY = Math.floor(Math.random() * 7) - 3; // -3 to 3
+    
+    const currentX = Math.round(this.npc.position.x);
+    const currentY = Math.round(this.npc.position.y);
+    
+    // Prevent going out of bounds
+    const newX = Math.max(0, Math.min(119, currentX + randOffsetX)); // Assuming 120x120 grid
+    const newY = Math.max(0, Math.min(119, currentY + randOffsetY));
+    
+    // Set a new target position
+    this.npc.targetPosition = { x: newX, y: newY };
+    
+    // Clear current path
+    this.currentPath = [];
+    this.pathIndex = 0;
+    
+    // Force an immediate path update
+    this.updatePath();
+    
+    console.log(`NPC ${this.npc.id} was stuck, trying new target: ${newX},${newY}`);
   }
   
   // Update the current path based on NPC target
@@ -103,15 +138,36 @@ export class AIController {
     const goal: GridPosition = { x: target.x, y: target.y };
     
     try {
-      this.currentPath = findPath(start, goal, this.npc.id, pathColor);
-      this.pathIndex = 0;
+      // Try to find a path
+      const newPath = findPath(start, goal, this.npc.id, pathColor);
+      
+      // Only update path if we found a valid one
+      if (newPath && newPath.length > 0) {
+        this.currentPath = newPath;
+        this.pathIndex = 0;
+        
+        // Reset stuck time when we find a valid path
+        this.stuckTime = 0;
+      } else {
+        // Increment stuck time if we couldn't find a path
+        this.stuckTime += this.pathUpdateInterval;
+        console.log(`NPC ${this.npc.id} couldn't find a path, stuckTime: ${this.stuckTime.toFixed(1)}s`);
+      }
     } catch (error) {
-      console.error("Error finding path:", error);
+      // On error, also increment stuck time
+      this.stuckTime += this.pathUpdateInterval;
+      console.error(`Error finding path for NPC ${this.npc.id}:`, error);
     }
   }
   
   // Follow the current path
   private followPath(deltaTime: number): void {
+    // Keep track of last position to detect if NPC is stuck
+    const lastPosition = {
+      x: this.npc.position.x,
+      y: this.npc.position.y
+    };
+    
     if (this.currentPath.length <= 1 || this.pathIndex >= this.currentPath.length) {
       this.npc.isMoving = false;
       return;
@@ -155,6 +211,9 @@ export class AIController {
         this.npc.isMoving = false;
         return;
       }
+      
+      // Reset stuck time since we're making progress
+      this.stuckTime = 0;
     } else {
       // Normalize direction
       const normalizedDirX = dirX / distToNext;
@@ -170,6 +229,18 @@ export class AIController {
       // Update grid position based on pixel position
       this.npc.position.x = this.npc.pixelPosition.x / TILE_SIZE;
       this.npc.position.y = this.npc.pixelPosition.y / TILE_SIZE;
+      
+      // Check if NPC is making actual progress
+      const newDistX = Math.abs(this.npc.position.x - lastPosition.x);
+      const newDistY = Math.abs(this.npc.position.y - lastPosition.y);
+      
+      // If not making any progress, increment stuck time
+      if (newDistX < 0.01 && newDistY < 0.01) {
+        this.stuckTime += deltaTime;
+      } else {
+        // Reset stuck timer if we're moving
+        this.stuckTime = 0;
+      }
     }
   }
   
