@@ -84,17 +84,19 @@ const GameUI = ({ debugMode = false }: GameUIProps) => {
                 <p>WASD/Arrows: Move</p>
                 <p>T: Transform (Human/Monster)</p>
                 <p>B: Toggle Debug Mode</p>
+                <p>Mouse Click: Spawn AI (in Debug Mode)</p>
               </div>
               <div className="md:hidden">
                 <p>D-Pad: Move</p>
                 <p>Transform Button: Change form</p>
                 <p>Debug Button: Toggle visualization</p>
+                <p>Touch: Spawn AI (in Debug Mode)</p>
               </div>
             </div>
             
             {/* Debug mode status */}
             <div className="mt-2 p-2 bg-gray-700 rounded">
-              Debug Mode: <span className="text-red-400">OFF</span>
+              Debug Mode: <span className={debugMode ? "text-green-400" : "text-red-400"}>{debugMode ? "ON" : "OFF"}</span>
             </div>
           </div>
         </div>
@@ -103,7 +105,7 @@ const GameUI = ({ debugMode = false }: GameUIProps) => {
       {/* Floating debug controls when debug mode is on */}
       {debugMode && (
         <div className="absolute top-4 left-4 z-10">
-          <div className="bg-black bg-opacity-80 p-2 rounded-lg">
+          <div className="bg-black bg-opacity-80 p-3 rounded-lg">
             <div className="flex items-center gap-2">
               <span className="text-green-400 font-bold">Debug Mode ON</span>
               <button
@@ -112,6 +114,12 @@ const GameUI = ({ debugMode = false }: GameUIProps) => {
               >
                 {visualizationOptions.showMetrics ? "Hide Metrics" : "Show Metrics"}
               </button>
+            </div>
+            <div className="mt-2 text-white text-xs">
+              <p>Debug Features:</p>
+              <p className="ml-2">• Mouse click to spawn random AI at cursor</p>
+              <p className="ml-2">• Pathfinding visualization</p>
+              <p className="ml-2">• Performance monitoring</p>
             </div>
           </div>
         </div>

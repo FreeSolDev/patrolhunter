@@ -14,6 +14,7 @@ interface EntityState {
   createPlayer: (playerData: Partial<Player>) => void;
   updatePlayer: (controls: Controls, deltaTime: number) => void;
   initializeNPCs: (npcDataArray: Partial<NPC>[]) => void;
+  spawnNPC: (position: GridPosition, type?: AIType) => void;
   getNPCById: (id: string) => NPC | undefined;
   updateNPCs: (deltaTime: number) => void;
   updateNPCTarget: (id: string, targetPosition: GridPosition) => void;
@@ -150,6 +151,53 @@ export const useEntityStore = create<EntityState>((set, get) => ({
     }
     
     return { npcs: updatedNPCs };
+  }),
+  
+  spawnNPC: (position, type) => set((state) => {
+    const id = nanoid();
+    const TILE_SIZE = 30;
+    
+    // Random AI type if not specified
+    const npcType = type || [
+      AIType.GUARD, 
+      AIType.HUNTER, 
+      AIType.SURVIVOR, 
+      AIType.PRESERVER, 
+      AIType.MERCHANT
+    ][Math.floor(Math.random() * 5)];
+    
+    // Create a new NPC
+    const npc: NPC = {
+      id,
+      position: position,
+      pixelPosition: {
+        x: position.x * TILE_SIZE,
+        y: position.y * TILE_SIZE
+      },
+      type: npcType,
+      targetPosition: position,
+      speed: 3, // Default speed
+      currentState: "Initializing",
+      isMoving: false,
+      currentPathIndex: 0,
+      // Add a groupId if it's a guard
+      groupId: npcType === AIType.GUARD ? Math.floor(Math.random() * 10) : undefined
+    };
+    
+    // Create AI controller for this NPC
+    const controller = new AIController(npc);
+    
+    // Add to existing collections
+    const updatedNPCs = [...state.npcs, npc];
+    const updatedControllers = new Map(state.npcControllers);
+    updatedControllers.set(id, controller);
+    
+    console.log(`Spawned new ${npcType} at position (${position.x}, ${position.y})`);
+    
+    return { 
+      npcs: updatedNPCs,
+      npcControllers: updatedControllers 
+    };
   }),
   
   updateNPCTarget: (id, targetPosition) => set((state) => {

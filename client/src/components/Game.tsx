@@ -1,4 +1,4 @@
-import { useEffect, useRef, RefObject } from "react";
+import { useEffect, useRef, RefObject, useState } from "react";
 import { useGridStore } from "../lib/stores/useGridStore";
 import { useEntityStore } from "../lib/stores/useEntityStore";
 import { usePathfinding } from "../lib/stores/usePathfinding";
@@ -41,7 +41,8 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     createPlayer, 
     initializeNPCs,
     updatePlayer,
-    updateNPCs
+    updateNPCs,
+    spawnNPC
   } = useEntityStore();
   const { 
     openSet, 
@@ -55,6 +56,15 @@ const Game = ({ canvasRef, controls }: GameProps) => {
   const lastTimeRef = useRef<number>(0);
   // Debug mode
   const debugModeRef = useRef<boolean>(false);
+  
+  // Track mouse position in both screen and grid coordinates
+  const [mousePosition, setMousePosition] = useState<{
+    screen: { x: number, y: number } | null,
+    grid: GridPosition | null
+  }>({
+    screen: null,
+    grid: null
+  });
 
   // Update debug mode when controls change
   useEffect(() => {
@@ -113,6 +123,86 @@ const Game = ({ canvasRef, controls }: GameProps) => {
     
     console.log("Game initialized successfully");
   }, [initializeGrid, createPlayer, initializeNPCs, start]);
+  
+  // Add mouse tracking for debug features
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    
+    // Function to convert screen coordinates to grid coordinates based on camera position
+    const screenToGrid = (screenX: number, screenY: number): GridPosition | null => {
+      if (!canvasRef.current || !player?.pixelPosition) return null;
+      
+      const viewportWidth = canvasRef.current.width;
+      const viewportHeight = canvasRef.current.height;
+      const gridWidthPx = gridSize.width * TILE_SIZE;
+      const gridHeightPx = gridSize.height * TILE_SIZE;
+      
+      // Calculate camera position centered on player
+      let cameraX = player.pixelPosition.x - viewportWidth / 2 + TILE_SIZE / 2;
+      let cameraY = player.pixelPosition.y - viewportHeight / 2 + TILE_SIZE / 2;
+      
+      // Clamp camera to grid boundaries
+      cameraX = Math.max(0, Math.min(cameraX, gridWidthPx - viewportWidth));
+      cameraY = Math.max(0, Math.min(cameraY, gridHeightPx - viewportHeight));
+      
+      // Convert screen position to grid position
+      const gridX = Math.floor((screenX + cameraX) / TILE_SIZE);
+      const gridY = Math.floor((screenY + cameraY) / TILE_SIZE);
+      
+      // Check if the grid position is within bounds
+      if (
+        gridX >= 0 && 
+        gridX < gridSize.width && 
+        gridY >= 0 && 
+        gridY < gridSize.height
+      ) {
+        return { x: gridX, y: gridY };
+      }
+      
+      return null;
+    };
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!canvasRef.current) return;
+      
+      // Get canvas-relative coordinates
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      
+      // Update mouse position state
+      setMousePosition({
+        screen: { x, y },
+        grid: screenToGrid(x, y)
+      });
+    };
+    
+    const handleMouseClick = (e: MouseEvent) => {
+      if (!canvasRef.current || !mousePosition.grid || !debugModeRef.current) return;
+      
+      // Only spawn NPCs in debug mode
+      if (debugModeRef.current) {
+        // Check if the tile is walkable before spawning
+        if (grid[mousePosition.grid.y][mousePosition.grid.x]) {
+          spawnNPC(mousePosition.grid);
+        } else {
+          console.log("Cannot spawn NPC on unwalkable tile");
+        }
+      }
+    };
+    
+    // Add event listeners
+    canvasRef.current.addEventListener('mousemove', handleMouseMove);
+    canvasRef.current.addEventListener('click', handleMouseClick);
+    
+    // Clean up
+    return () => {
+      if (canvasRef.current) {
+        canvasRef.current.removeEventListener('mousemove', handleMouseMove);
+        canvasRef.current.removeEventListener('click', handleMouseClick);
+      }
+    };
+  }, [canvasRef, player, gridSize, grid, spawnNPC]);
 
   // Render function
   const renderGame = () => {
@@ -458,6 +548,45 @@ const Game = ({ canvasRef, controls }: GameProps) => {
         }
         ctx.globalAlpha = 1.0;
       }
+    }
+    
+    // Draw debug mouse cursor if in debug mode
+    if (debugModeRef.current && mousePosition.grid) {
+      const [cursorX, cursorY] = gridToScreen(mousePosition.grid);
+      
+      // Draw highlighted tile
+      ctx.fillStyle = 'rgba(255, 255, 0, 0.3)'; // Translucent yellow
+      ctx.fillRect(cursorX, cursorY, TILE_SIZE, TILE_SIZE);
+      
+      // Draw tile border
+      ctx.strokeStyle = 'rgba(255, 255, 0, 0.8)'; // More solid yellow
+      ctx.lineWidth = 2;
+      ctx.strokeRect(cursorX, cursorY, TILE_SIZE, TILE_SIZE);
+      
+      // Draw crosshair
+      ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)'; // Red
+      ctx.beginPath();
+      ctx.moveTo(cursorX + TILE_SIZE / 2, cursorY);
+      ctx.lineTo(cursorX + TILE_SIZE / 2, cursorY + TILE_SIZE);
+      ctx.moveTo(cursorX, cursorY + TILE_SIZE / 2);
+      ctx.lineTo(cursorX + TILE_SIZE, cursorY + TILE_SIZE / 2);
+      ctx.stroke();
+      
+      // Draw text showing grid coordinates
+      ctx.fillStyle = '#ffffff'; // White
+      ctx.font = '10px Arial';
+      ctx.fillText(
+        `(${mousePosition.grid.x}, ${mousePosition.grid.y})`,
+        cursorX + 2,
+        cursorY + 10
+      );
+      
+      // Draw "Click to spawn" instruction
+      ctx.fillText(
+        'Click to spawn NPC',
+        cursorX + 2,
+        cursorY + TILE_SIZE - 2
+      );
     }
     
     // Draw NPCs (only those within or near the viewport)
