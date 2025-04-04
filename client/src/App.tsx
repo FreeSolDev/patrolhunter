@@ -3,6 +3,7 @@ import { useAudio } from "./lib/stores/useAudio";
 import "@fontsource/inter";
 import Game from "./components/Game";
 import GameUI from "./components/GameUI";
+import { useIsMobile } from "./hooks/use-is-mobile";
 
 // Main App component
 function App() {
@@ -18,6 +19,7 @@ function App() {
   });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameContainerRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile(); // Use the mobile detection hook
   
   // Handle keyboard controls
   useEffect(() => {
@@ -72,27 +74,50 @@ function App() {
       }
     };
 
-    // Add touch controls for mobile
+    // Add touch controls for mobile - these handle general screen touches
+    // Our on-screen buttons use specific onTouchStart/onTouchEnd handlers
     const handleTouchStart = (e: TouchEvent) => {
-      e.preventDefault();
+      // We no longer want to prevent default here to allow on-screen buttons to work
+      // e.preventDefault(); 
+      
+      // This handler will only be used for screen swipes or touches outside of the UI buttons
       if (!gameContainerRef.current) return;
+      
+      // Check if the touch is on a UI element (button)
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'BUTTON') {
+        return; // Let the button's own handlers deal with it
+      }
       
       const touch = e.touches[0];
       const rect = gameContainerRef.current.getBoundingClientRect();
       const x = touch.clientX - rect.left;
       const y = touch.clientY - rect.top;
       
-      // Create a simple virtual joystick
+      // Create a better swipe detection
       const centerX = rect.width / 2;
       const centerY = rect.height / 2;
+      const swipeThreshold = Math.min(rect.width, rect.height) * 0.1; // 10% of screen size
       
-      if (y < centerY - 50) setControls(prev => ({ ...prev, up: true }));
-      if (y > centerY + 50) setControls(prev => ({ ...prev, down: true }));
-      if (x < centerX - 50) setControls(prev => ({ ...prev, left: true }));
-      if (x > centerX + 50) setControls(prev => ({ ...prev, right: true }));
+      if (y < centerY - swipeThreshold) setControls(prev => ({ ...prev, up: true }));
+      if (y > centerY + swipeThreshold) setControls(prev => ({ ...prev, down: true }));
+      if (x < centerX - swipeThreshold) setControls(prev => ({ ...prev, left: true }));
+      if (x > centerX + swipeThreshold) setControls(prev => ({ ...prev, right: true }));
+      
+      // Store the touch position for potential swipe detection
+      (window as any).lastTouchX = x;
+      (window as any).lastTouchY = y;
     };
     
-    const handleTouchEnd = () => {
+    const handleTouchEnd = (e: TouchEvent) => {
+      // Check if the touch ended on a UI element (button)
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'BUTTON') {
+        return; // Let the button's own handlers deal with it
+      }
+      
+      // Reset movement controls, but don't reset action buttons like transform
+      // which have their own handlers
       setControls(prev => ({ 
         ...prev, 
         up: false, 
@@ -168,62 +193,128 @@ function App() {
           {/* Sound toggle button */}
           <button 
             onClick={toggleMute}
-            className="absolute top-4 right-4 bg-gray-800 text-white p-2 rounded-full z-50"
+            className="absolute top-4 right-4 bg-gray-800 text-white p-2 md:p-3 rounded-full z-50 shadow-lg flex items-center justify-center"
+            aria-label="Toggle Sound"
           >
-            Toggle Sound
+            {!isMobile ? <span>Toggle Sound</span> : <span className="text-lg">🔊</span>}
           </button>
           
-          {/* Mobile controls */}
-          <div className="md:hidden fixed bottom-8 left-1/2 transform -translate-x-1/2 flex gap-4">
-            <button 
-              className="bg-gray-800 text-white p-4 rounded-full opacity-70"
-              onTouchStart={() => setControls(prev => ({ ...prev, transform: true }))}
-              onTouchEnd={() => setControls(prev => ({ ...prev, transform: false }))}
-            >
-              Transform
-            </button>
-            
-            <button 
-              className="bg-gray-800 text-white p-4 rounded-full opacity-70"
-              onClick={() => setControls(prev => ({ ...prev, debug: !prev.debug }))}
-            >
-              Toggle Debug
-            </button>
-          </div>
-          
-          {/* Virtual D-pad for mobile */}
-          <div className="md:hidden fixed bottom-24 left-8 flex flex-col items-center">
-            <button 
-              className="bg-gray-800 text-white p-4 rounded-full mb-2 opacity-70"
-              onTouchStart={() => setControls(prev => ({ ...prev, up: true }))}
-              onTouchEnd={() => setControls(prev => ({ ...prev, up: false }))}
-            >
-              ↑
-            </button>
-            <div className="flex gap-2">
-              <button 
-                className="bg-gray-800 text-white p-4 rounded-full opacity-70"
-                onTouchStart={() => setControls(prev => ({ ...prev, left: true }))}
-                onTouchEnd={() => setControls(prev => ({ ...prev, left: false }))}
-              >
-                ←
-              </button>
-              <button 
-                className="bg-gray-800 text-white p-4 rounded-full opacity-70"
-                onTouchStart={() => setControls(prev => ({ ...prev, down: true }))}
-                onTouchEnd={() => setControls(prev => ({ ...prev, down: false }))}
-              >
-                ↓
-              </button>
-              <button 
-                className="bg-gray-800 text-white p-4 rounded-full opacity-70"
-                onTouchStart={() => setControls(prev => ({ ...prev, right: true }))}
-                onTouchEnd={() => setControls(prev => ({ ...prev, right: false }))}
-              >
-                →
-              </button>
-            </div>
-          </div>
+          {/* Mobile controls - only rendered if isMobile is true */}
+          {isMobile && (
+            <>
+              {/* Left side: D-pad */}
+              <div className="fixed bottom-10 left-8 flex flex-col items-center z-50">
+                <button 
+                  className="bg-gray-800 text-white p-4 w-20 h-20 rounded-full mb-2 opacity-90 text-2xl font-bold shadow-lg active:bg-gray-700 active:scale-95 transition-all touch-none"
+                  onTouchStart={(e) => {
+                    e.preventDefault(); // Prevent double-firing of events
+                    setControls(prev => ({ ...prev, up: true }));
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    setControls(prev => ({ ...prev, up: false }));
+                  }}
+                  onTouchCancel={(e) => {
+                    e.preventDefault();
+                    setControls(prev => ({ ...prev, up: false }));
+                  }}
+                >
+                  ↑
+                </button>
+                <div className="flex gap-2">
+                  <button 
+                    className="bg-gray-800 text-white p-4 w-20 h-20 rounded-full opacity-90 text-2xl font-bold shadow-lg active:bg-gray-700 active:scale-95 transition-all touch-none"
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      setControls(prev => ({ ...prev, left: true }));
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      setControls(prev => ({ ...prev, left: false }));
+                    }}
+                    onTouchCancel={(e) => {
+                      e.preventDefault();
+                      setControls(prev => ({ ...prev, left: false }));
+                    }}
+                  >
+                    ←
+                  </button>
+                  <button 
+                    className="bg-gray-800 text-white p-4 w-20 h-20 rounded-full opacity-90 text-2xl font-bold shadow-lg active:bg-gray-700 active:scale-95 transition-all touch-none"
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      setControls(prev => ({ ...prev, down: true }));
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      setControls(prev => ({ ...prev, down: false }));
+                    }}
+                    onTouchCancel={(e) => {
+                      e.preventDefault();
+                      setControls(prev => ({ ...prev, down: false }));
+                    }}
+                  >
+                    ↓
+                  </button>
+                  <button 
+                    className="bg-gray-800 text-white p-4 w-20 h-20 rounded-full opacity-90 text-2xl font-bold shadow-lg active:bg-gray-700 active:scale-95 transition-all touch-none"
+                    onTouchStart={(e) => {
+                      e.preventDefault();
+                      setControls(prev => ({ ...prev, right: true }));
+                    }}
+                    onTouchEnd={(e) => {
+                      e.preventDefault();
+                      setControls(prev => ({ ...prev, right: false }));
+                    }}
+                    onTouchCancel={(e) => {
+                      e.preventDefault();
+                      setControls(prev => ({ ...prev, right: false }));
+                    }}
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+              
+              {/* Right side: Action buttons */}
+              <div className="fixed bottom-10 right-8 flex flex-col items-center z-50">
+                <button 
+                  className="bg-purple-700 text-white p-4 w-20 h-20 rounded-full mb-4 opacity-90 shadow-lg text-2xl font-bold active:bg-purple-600 active:scale-95 transition-all touch-none"
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    setControls(prev => ({ ...prev, transform: true }));
+                  }}
+                  onTouchEnd={(e) => {
+                    e.preventDefault();
+                    setControls(prev => ({ ...prev, transform: false }));
+                  }}
+                  onTouchCancel={(e) => {
+                    e.preventDefault();
+                    setControls(prev => ({ ...prev, transform: false }));
+                  }}
+                >
+                  T
+                </button>
+                
+                <button 
+                  className="bg-blue-700 text-white p-4 w-20 h-20 rounded-full opacity-90 shadow-lg text-2xl font-bold active:bg-blue-600 active:scale-95 transition-all touch-none"
+                  onTouchStart={(e) => {
+                    e.preventDefault();
+                    setControls(prev => ({ ...prev, debug: !prev.debug }));
+                  }}
+                >
+                  B
+                </button>
+              </div>
+              
+              {/* Info overlay for mobile */}
+              <div className="fixed top-16 left-0 right-0 flex justify-center pointer-events-none">
+                <div className="bg-black bg-opacity-50 text-white px-4 py-2 rounded-full text-xs">
+                  T = Transform | B = Debug Mode
+                </div>
+              </div>
+            </>
+          )}
         </>
       )}
     </div>
