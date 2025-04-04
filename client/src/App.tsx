@@ -20,6 +20,10 @@ function App() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const gameContainerRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile(); // Use the mobile detection hook
+  const [forceMobileControls, setForceMobileControls] = useState(false);
+  
+  // Show controls either when device is detected as mobile or when forced through the toggle
+  const showMobileControls = isMobile || forceMobileControls;
   
   // Handle keyboard controls
   useEffect(() => {
@@ -190,7 +194,7 @@ function App() {
           <Game canvasRef={canvasRef} controls={controls} />
           <GameUI debugMode={controls.debug} />
           
-          {/* Sound toggle button */}
+          {/* Sound toggle button - debugs isMobile state */}
           <button 
             onClick={toggleMute}
             className="absolute top-4 right-4 bg-gray-800 text-white p-2 md:p-3 rounded-full z-50 shadow-lg flex items-center justify-center"
@@ -199,8 +203,16 @@ function App() {
             {!isMobile ? <span>Toggle Sound</span> : <span className="text-lg">🔊</span>}
           </button>
           
-          {/* Mobile controls - only rendered if isMobile is true */}
-          {isMobile && (
+          {/* Mobile controls toggle button - always visible to help users on tablets/iPad */}
+          <button
+            onClick={() => setForceMobileControls(prev => !prev)}
+            className="fixed bottom-3 left-1/2 transform -translate-x-1/2 bg-black text-white px-4 py-2 rounded-full text-sm z-50 opacity-70 hover:opacity-100 transition-opacity"
+          >
+            {showMobileControls ? 'Hide' : 'Show'} Touch Controls
+          </button>
+          
+          {/* Mobile controls - rendered if isMobile is true OR forceMobileControls is true */}
+          {showMobileControls && (
             <>
               {/* Left side: D-pad */}
               <div className="fixed bottom-10 left-8 flex flex-col items-center z-50">
@@ -218,6 +230,9 @@ function App() {
                     e.preventDefault();
                     setControls(prev => ({ ...prev, up: false }));
                   }}
+                  onMouseDown={() => setControls(prev => ({ ...prev, up: true }))}
+                  onMouseUp={() => setControls(prev => ({ ...prev, up: false }))}
+                  onMouseLeave={() => setControls(prev => ({ ...prev, up: false }))}
                 >
                   ↑
                 </button>
@@ -236,6 +251,9 @@ function App() {
                       e.preventDefault();
                       setControls(prev => ({ ...prev, left: false }));
                     }}
+                    onMouseDown={() => setControls(prev => ({ ...prev, left: true }))}
+                    onMouseUp={() => setControls(prev => ({ ...prev, left: false }))}
+                    onMouseLeave={() => setControls(prev => ({ ...prev, left: false }))}
                   >
                     ←
                   </button>
@@ -253,6 +271,9 @@ function App() {
                       e.preventDefault();
                       setControls(prev => ({ ...prev, down: false }));
                     }}
+                    onMouseDown={() => setControls(prev => ({ ...prev, down: true }))}
+                    onMouseUp={() => setControls(prev => ({ ...prev, down: false }))}
+                    onMouseLeave={() => setControls(prev => ({ ...prev, down: false }))}
                   >
                     ↓
                   </button>
@@ -270,6 +291,9 @@ function App() {
                       e.preventDefault();
                       setControls(prev => ({ ...prev, right: false }));
                     }}
+                    onMouseDown={() => setControls(prev => ({ ...prev, right: true }))}
+                    onMouseUp={() => setControls(prev => ({ ...prev, right: false }))}
+                    onMouseLeave={() => setControls(prev => ({ ...prev, right: false }))}
                   >
                     →
                   </button>
@@ -292,6 +316,9 @@ function App() {
                     e.preventDefault();
                     setControls(prev => ({ ...prev, transform: false }));
                   }}
+                  onMouseDown={() => setControls(prev => ({ ...prev, transform: true }))}
+                  onMouseUp={() => setControls(prev => ({ ...prev, transform: false }))}
+                  onMouseLeave={() => setControls(prev => ({ ...prev, transform: false }))}
                 >
                   T
                 </button>
@@ -302,6 +329,7 @@ function App() {
                     e.preventDefault();
                     setControls(prev => ({ ...prev, debug: !prev.debug }));
                   }}
+                  onMouseDown={() => setControls(prev => ({ ...prev, debug: !prev.debug }))}
                 >
                   B
                 </button>
