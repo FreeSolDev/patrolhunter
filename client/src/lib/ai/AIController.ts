@@ -6,6 +6,7 @@ import { GuardBehavior } from "./behaviors/GuardBehavior";
 import { HunterBehavior } from "./behaviors/HunterBehavior";
 import { SurvivorBehavior } from "./behaviors/SurvivorBehavior";
 import { PreserverBehavior } from "./behaviors/PreserverBehavior";
+import { MerchantBehavior } from "./behaviors/MerchantBehavior";
 
 // AI controller that manages behavior state machine for each NPC
 export class AIController {
@@ -35,6 +36,9 @@ export class AIController {
         
       case AIType.PRESERVER:
         return new PreserverBehavior(this.npc);
+        
+      case AIType.MERCHANT:
+        return new MerchantBehavior(this.npc);
         
       default:
         // Default to survivor behavior if unknown
@@ -83,6 +87,9 @@ export class AIController {
         break;
       case AIType.PRESERVER:
         pathColor = "#FF00FF"; // Magenta
+        break;
+      case AIType.MERCHANT:
+        pathColor = "#FFDD00"; // Gold/Yellow
         break;
       default:
         pathColor = "#FFFFFF"; // White

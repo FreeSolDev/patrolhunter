@@ -3,7 +3,8 @@ export enum AIType {
   GUARD = "GUARD",       // Type 1: Guard that patrols and coordinates attacks
   HUNTER = "HUNTER",     // Type 2: Monster hunter with different behaviors based on player form
   SURVIVOR = "SURVIVOR", // Type 3: Self-preserving AI focused on survival
-  PRESERVER = "PRESERVER" // Type 4: Life preserver ring attacker that does hit-and-run tactics
+  PRESERVER = "PRESERVER", // Type 4: Life preserver ring attacker that does hit-and-run tactics
+  MERCHANT = "MERCHANT"  // Type 5: Merchant that moves between trading hotspots, alerts guards, can flee
 }
 
 // Define AI states for Guard behavior
@@ -39,4 +40,13 @@ export enum PreserverState {
   ATTACK = "Attack",     // Attack target
   RETREAT = "Retreat",   // Retreat after attack
   REPOSITION = "Reposition" // Move to a new attack position
+}
+
+// Define AI states for Merchant behavior
+export enum MerchantState {
+  TRAVEL = "Travel",       // Traveling between hotspots
+  TRADE = "Trade",         // Trading at a hotspot location
+  ALERT_GUARDS = "Alert Guards", // Running to guards to alert about a threat
+  FLEE = "Flee",           // Fleeing from danger
+  WANDER = "Wander"        // Wandering around a hotspot area
 }
