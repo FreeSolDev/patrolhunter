@@ -84,6 +84,9 @@ export class GuardBehavior implements StateMachine {
       this.timeWithoutVisual += deltaTime;
     }
     
+    // Create a boolean for coordination (non-null)
+    const canSeePlayer: boolean = hasVisualOnPlayer ? true : false;
+    
     // Process the current state
     switch (this.currentState) {
       case GuardState.PATROL:
@@ -122,7 +125,7 @@ export class GuardBehavior implements StateMachine {
         
         // Try to coordinate with nearby guards of the same group
         if (this.coordinationTimer >= this.coordinationInterval) {
-          this.coordinateWithOtherGuards(npcs, hasVisualOnPlayer);
+          this.coordinateWithOtherGuards(npcs, canSeePlayer);
           this.coordinationTimer = 0;
         }
         
@@ -205,7 +208,7 @@ export class GuardBehavior implements StateMachine {
         
       case GuardState.COORDINATE:
         // Coordinate with other guards, then return to previous behavior
-        this.coordinateWithOtherGuards(npcs, hasVisualOnPlayer);
+        this.coordinateWithOtherGuards(npcs, canSeePlayer);
         
         // If we have visual, attack; otherwise investigate
         if (hasVisualOnPlayer && player && player.isMonster) {
@@ -218,7 +221,7 @@ export class GuardBehavior implements StateMachine {
   }
   
   // Find other guards in the same group and coordinate attacks
-  private coordinateWithOtherGuards(npcs: NPC[], hasVisualOnPlayer: boolean = false): void {
+  private coordinateWithOtherGuards(npcs: NPC[], canSeePlayer: boolean = false): void {
     if (!this.npc.groupId) return;
     
     const player = useEntityStore.getState().player;
@@ -236,7 +239,7 @@ export class GuardBehavior implements StateMachine {
         const targetPositions: GridPosition[] = [];
         
         // Use different strategies based on whether the player is visible
-        if (hasVisualOnPlayer) {
+        if (canSeePlayer) {
           // Direct flanking when player is visible - surround from all sides
           const flankDistance = 2;
           const angles = [0, Math.PI / 2, Math.PI, 3 * Math.PI / 2];

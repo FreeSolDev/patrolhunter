@@ -83,51 +83,15 @@ export class HunterBehavior implements StateMachine {
           this.currentHuntIndex = (this.currentHuntIndex + 1) % this.huntPoints.length;
         }
         
-        // If player is detected and visible, attack or engage based on form
-        if (player && hasVisualOnPlayer && distanceToPlayer < this.detectionRadius) {
-          if (player.isMonster) {
-            this.currentState = HunterState.ATTACK_MONSTER;
-          } else {
-            this.currentState = HunterState.ATTACK_HUMAN;
-          }
+        // If player is detected, visible, and in monster form, attack
+        if (player && hasVisualOnPlayer && player.isMonster && distanceToPlayer < this.detectionRadius) {
+          this.currentState = HunterState.ATTACK_MONSTER;
         }
         break;
         
       case HunterState.ATTACK_HUMAN:
-        if (!player) {
-          this.currentState = HunterState.HUNT;
-          break;
-        }
-        
-        // If player transforms to monster, switch attack mode
-        if (player.isMonster) {
-          this.currentState = HunterState.ATTACK_MONSTER;
-          break;
-        }
-        
-        // If we have line of sight, update target to current player position
-        if (hasVisualOnPlayer) {
-          this.npc.targetPosition = { ...player.position };
-        } 
-        // If we've lost sight but recently saw the player, go to last known position
-        else if (this.lastKnownPlayerPosition && this.timeWithoutVisual < this.maxTimeWithoutVisual) {
-          this.npc.targetPosition = { ...this.lastKnownPlayerPosition };
-        } 
-        // If we've lost track of player for too long, go back to hunting
-        else if (this.timeWithoutVisual >= this.maxTimeWithoutVisual) {
-          this.currentState = HunterState.HUNT;
-          this.lastKnownPlayerPosition = null;
-          break;
-        }
-        
-        // If we're close enough to attack and cooldown is over, perform attack
-        if (hasVisualOnPlayer && distanceToPlayer <= this.attackRange && this.attackCooldown <= 0) {
-          this.attackPlayer();
-          
-          // After attacking in human form, retreat
-          this.retreatCooldown = this.retreatCooldownMax;
-          this.currentState = HunterState.RETREAT;
-        }
+        // Hunters no longer attack humans - if somehow in this state, go back to hunting
+        this.currentState = HunterState.HUNT;
         break;
         
       case HunterState.ATTACK_MONSTER:
@@ -136,9 +100,9 @@ export class HunterBehavior implements StateMachine {
           break;
         }
         
-        // If player transforms to human, switch attack mode
+        // If player transforms to human, go back to hunting
         if (!player.isMonster) {
-          this.currentState = HunterState.ATTACK_HUMAN;
+          this.currentState = HunterState.HUNT;
           break;
         }
         
