@@ -8,7 +8,7 @@ interface GridState {
   obstacles: GridPosition[];
   
   // Actions
-  initializeGrid: (size: GridSize) => void;
+  initializeGrid: (size: GridSize, customObstacles?: GridPosition[]) => void;
   setTileWalkable: (position: GridPosition, walkable: boolean) => void;
   addObstacle: (position: GridPosition) => void;
   removeObstacle: (position: GridPosition) => void;
@@ -19,7 +19,7 @@ export const useGridStore = create<GridState>((set) => ({
   gridSize: { width: 0, height: 0 },
   obstacles: [],
   
-  initializeGrid: (size) => {
+  initializeGrid: (size, customObstacles) => {
     const { width, height } = size;
     
     // Create the grid
@@ -32,25 +32,38 @@ export const useGridStore = create<GridState>((set) => ({
       grid.push(row);
     }
     
-    // Generate random obstacles
-    const obstacles: GridPosition[] = [];
-    const numObstacles = Math.floor((width * height) * 0.1); // 10% of tiles are obstacles
+    // Use provided obstacles or generate random ones
+    let obstacles: GridPosition[] = [];
     
-    for (let i = 0; i < numObstacles; i++) {
-      // Generate random position
-      const x = Math.floor(Math.random() * width);
-      const y = Math.floor(Math.random() * height);
+    if (customObstacles && customObstacles.length > 0) {
+      obstacles = [...customObstacles];
+    } else {
+      // Generate random obstacles if none provided
+      const numObstacles = Math.floor((width * height) * 0.1); // 10% of tiles are obstacles
       
-      // Don't place obstacles in the middle area (player spawn)
-      const middleX = width / 2;
-      const middleY = height / 2;
-      const distToMiddle = Math.sqrt(Math.pow(x - middleX, 2) + Math.pow(y - middleY, 2));
-      
-      if (distToMiddle > 3) {
-        obstacles.push({ x, y });
-        grid[y][x] = false; // Make tile unwalkable
+      for (let i = 0; i < numObstacles; i++) {
+        // Generate random position
+        const x = Math.floor(Math.random() * width);
+        const y = Math.floor(Math.random() * height);
+        
+        // Don't place obstacles in the middle area (player spawn)
+        const middleX = width / 2;
+        const middleY = height / 2;
+        const distToMiddle = Math.sqrt(Math.pow(x - middleX, 2) + Math.pow(y - middleY, 2));
+        
+        if (distToMiddle > 3) {
+          obstacles.push({ x, y });
+        }
       }
     }
+    
+    // Mark obstacle tiles as unwalkable
+    obstacles.forEach(obstacle => {
+      if (obstacle.y >= 0 && obstacle.y < height &&
+          obstacle.x >= 0 && obstacle.x < width) {
+        grid[obstacle.y][obstacle.x] = false;
+      }
+    });
     
     set({ grid, gridSize: size, obstacles });
   },
