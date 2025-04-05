@@ -191,7 +191,7 @@ export function createDebugVisualizer(
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const isWalkable = grid.isWalkable(x, y);
-        ctx.fillStyle = isWalkable ? opts.colors.walkable : opts.colors.obstacle;
+        ctx.fillStyle = isWalkable ? (opts.colors.walkable || '#ffffff') : (opts.colors.obstacle || '#333333');
         ctx.fillRect(
           x * opts.cellSize,
           y * opts.cellSize,
@@ -203,7 +203,7 @@ export function createDebugVisualizer(
     
     // Draw grid lines
     if (opts.showGrid) {
-      ctx.strokeStyle = opts.colors.grid;
+      ctx.strokeStyle = opts.colors.grid || '#cccccc';
       ctx.lineWidth = 1;
       
       // Vertical lines
@@ -231,7 +231,7 @@ export function createDebugVisualizer(
     // Draw visited nodes
     if (opts.showVisited) {
       for (const node of visitedNodes) {
-        ctx.fillStyle = opts.colors.visited;
+        ctx.fillStyle = opts.colors.visited || 'rgba(255, 255, 0, 0.3)';
         ctx.fillRect(
           node.x * opts.cellSize,
           node.y * opts.cellSize,

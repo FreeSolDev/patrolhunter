@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { usePathfinding } from '../../lib/stores/usePathfinding';
 import { useGridStore } from '../../lib/stores/useGridStore';
+import { useEntityStore } from '../../lib/stores/useEntityStore';
 import { GridPosition } from '../../lib/types';
 
 const COLORS = {
@@ -71,6 +72,7 @@ const PathfindingDebug: React.FC = () => {
   
   const { openSet, closedSet, currentPaths } = usePathfinding();
   const { grid, gridSize } = useGridStore();
+  const { npcs } = useEntityStore();
   
   const [stats, setStats] = useState<PathfindingStats>({
     pathsCalculated: 0,
@@ -262,6 +264,11 @@ const PathfindingDebug: React.FC = () => {
     <>
       <div style={styles.container}>
         <div style={styles.header}>Pathfinding Debug</div>
+        
+        <div style={styles.row}>
+          <span>Total Entities:</span>
+          <span>{npcs.length}</span>
+        </div>
         
         <div style={styles.row}>
           <span>Active Paths:</span>

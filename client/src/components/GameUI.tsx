@@ -18,7 +18,8 @@ const GameUI = ({ debugMode = false }: GameUIProps) => {
     hunters: 0,
     survivors: 0,
     preservers: 0,
-    merchants: 0
+    merchants: 0,
+    total: 0
   });
 
   // Update stats
@@ -28,13 +29,15 @@ const GameUI = ({ debugMode = false }: GameUIProps) => {
     const survivorCount = npcs.filter(npc => npc.type === AIType.SURVIVOR).length;
     const preserverCount = npcs.filter(npc => npc.type === AIType.PRESERVER).length;
     const merchantCount = npcs.filter(npc => npc.type === AIType.MERCHANT).length;
+    const totalCount = npcs.length;
     
     setStats({
       guards: guardCount,
       hunters: hunterCount,
       survivors: survivorCount,
       preservers: preserverCount,
-      merchants: merchantCount
+      merchants: merchantCount,
+      total: totalCount
     });
   }, [npcs]);
   
@@ -69,7 +72,7 @@ const GameUI = ({ debugMode = false }: GameUIProps) => {
             
             {/* Entity counts */}
             <div className="mb-2">
-              <h3 className="font-bold">Entities</h3>
+              <h3 className="font-bold">Entities <span className="text-yellow-400">({stats.total} total)</span></h3>
               <p>Guards: {stats.guards}</p>
               <p>Hunters: {stats.hunters}</p>
               <p>Survivors: {stats.survivors}</p>
@@ -116,6 +119,7 @@ const GameUI = ({ debugMode = false }: GameUIProps) => {
               </button>
             </div>
             <div className="mt-2 text-white text-xs">
+              <p>Entity Count: <span className="font-bold text-yellow-400">{stats.total}</span> (<span className="text-blue-300">G:{stats.guards}</span> <span className="text-red-300">H:{stats.hunters}</span> <span className="text-green-300">S:{stats.survivors}</span> <span className="text-purple-300">P:{stats.preservers}</span> <span className="text-amber-300">M:{stats.merchants}</span>)</p>
               <p>Debug Features:</p>
               <p className="ml-2">• Mouse click to spawn random AI at cursor</p>
               <p className="ml-2">• Pathfinding visualization</p>
