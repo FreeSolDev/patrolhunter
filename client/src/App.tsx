@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAudio } from "./lib/stores/useAudio";
+import { Link } from "react-router-dom";
 import "@fontsource/inter";
 import Game from "./components/Game";
 import GameUI from "./components/GameUI";
@@ -245,7 +246,7 @@ function App() {
           <Game canvasRef={canvasRef} controls={controls} />
           <GameUI debugMode={controls.debug} />
           
-          {/* Sound toggle button - debugs isMobile state */}
+          {/* Sound toggle button */}
           <button 
             onClick={toggleMute}
             className="absolute top-4 right-4 bg-gray-800 text-white p-2 md:p-3 rounded-full z-50 shadow-lg flex items-center justify-center"
@@ -253,6 +254,14 @@ function App() {
           >
             {!isMobile ? <span>Toggle Sound</span> : <span className="text-lg">🔊</span>}
           </button>
+          
+          {/* Link to Pathfinder Demo */}
+          <Link 
+            to="/demo" 
+            className="absolute top-4 left-4 bg-blue-600 text-white p-2 md:p-3 rounded-lg z-50 shadow-lg flex items-center justify-center hover:bg-blue-700 transition-colors"
+          >
+            {!isMobile ? <span>View Pathfinder Demo</span> : <span className="text-lg">🧩</span>}
+          </Link>
           
           {/* Mobile controls toggle button - always visible to help users on tablets/iPad */}
           <button
