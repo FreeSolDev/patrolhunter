@@ -182,11 +182,17 @@ const Game = ({ canvasRef, controls }: GameProps) => {
       
       // Only spawn NPCs in debug mode
       if (debugModeRef.current) {
-        // Check if the tile is walkable before spawning
-        if (grid[mousePosition.grid.y][mousePosition.grid.x]) {
-          spawnNPC(mousePosition.grid);
+        // First check if the grid position is valid
+        const { x, y } = mousePosition.grid;
+        if (y >= 0 && y < grid.length && x >= 0 && grid[y] && x < grid[y].length) {
+          // Check if the tile is walkable before spawning
+          if (grid[y][x]) {
+            spawnNPC(mousePosition.grid);
+          } else {
+            console.log("Cannot spawn NPC on unwalkable tile");
+          }
         } else {
-          console.log("Cannot spawn NPC on unwalkable tile");
+          console.log("Cannot spawn NPC outside the grid bounds");
         }
       }
     };

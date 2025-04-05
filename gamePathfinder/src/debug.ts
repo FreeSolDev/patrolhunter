@@ -129,31 +129,37 @@ export function createDebugVisualizer(
   grid: IGrid,
   options?: DebugVisualizerOptions
 ): DebugVisualizer {
+  // Define default colors separately to ensure type safety
+  const defaultColors = {
+    walkable: '#ffffff',
+    obstacle: '#333333',
+    start: '#00ff00',
+    goal: '#ff0000',
+    path: '#0000ff',
+    visited: 'rgba(255, 255, 0, 0.3)',
+    grid: '#cccccc'
+  };
+  
   // Default options
   const defaultOptions: Required<DebugVisualizerOptions> = {
     cellSize: 20,
-    colors: {
-      walkable: '#ffffff',
-      obstacle: '#333333',
-      start: '#00ff00',
-      goal: '#ff0000',
-      path: '#0000ff',
-      visited: 'rgba(255, 255, 0, 0.3)',
-      grid: '#cccccc'
-    },
+    colors: defaultColors,
     showGrid: true,
     showVisited: true,
     delay: 50
+  };
+  
+  // Merge options with guaranteed defaults for colors
+  const mergedColors = {
+    ...defaultColors,
+    ...(options?.colors || {})
   };
   
   // Merge options
   const opts: Required<DebugVisualizerOptions> = {
     ...defaultOptions,
     ...options,
-    colors: {
-      ...defaultOptions.colors,
-      ...(options?.colors || {})
-    }
+    colors: mergedColors
   };
   
   // Canvas and context
@@ -243,7 +249,7 @@ export function createDebugVisualizer(
     
     // Draw path
     if (path.length > 0) {
-      ctx.strokeStyle = opts.colors.path;
+      ctx.strokeStyle = opts.colors.path || '#0000ff';
       ctx.lineWidth = opts.cellSize / 3;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -266,7 +272,7 @@ export function createDebugVisualizer(
     
     // Draw start and goal
     if (start) {
-      ctx.fillStyle = opts.colors.start;
+      ctx.fillStyle = opts.colors.start || '#00ff00';
       ctx.beginPath();
       ctx.arc(
         start.x * opts.cellSize + opts.cellSize / 2,
@@ -279,7 +285,7 @@ export function createDebugVisualizer(
     }
     
     if (goal) {
-      ctx.fillStyle = opts.colors.goal;
+      ctx.fillStyle = opts.colors.goal || '#ff0000';
       ctx.beginPath();
       ctx.arc(
         goal.x * opts.cellSize + opts.cellSize / 2,
