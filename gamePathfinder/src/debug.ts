@@ -19,43 +19,43 @@ export interface DebugVisualizerOptions {
      * Color for walkable cells
      * @default '#ffffff'
      */
-    walkable: string;
+    walkable?: string;
     
     /**
      * Color for obstacles
      * @default '#333333'
      */
-    obstacle: string;
+    obstacle?: string;
     
     /**
      * Color for the start position
      * @default '#00ff00'
      */
-    start: string;
+    start?: string;
     
     /**
      * Color for the goal position
      * @default '#ff0000'
      */
-    goal: string;
+    goal?: string;
     
     /**
      * Color for the path
      * @default '#0000ff'
      */
-    path: string;
+    path?: string;
     
     /**
      * Color for visited nodes
      * @default 'rgba(255, 255, 0, 0.3)'
      */
-    visited: string;
+    visited?: string;
     
     /**
      * Color for grid lines
      * @default '#cccccc'
      */
-    grid: string;
+    grid?: string;
   };
   
   /**
