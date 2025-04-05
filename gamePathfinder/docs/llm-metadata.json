@@ -1,0 +1,255 @@
+{
+  "libraryName": "gamePathfinder",
+  "version": "1.0.0",
+  "description": "A comprehensive pathfinding library designed for 2D grid-based games, providing robust A* pathfinding, entity behavior management, and path optimization.",
+  "main": "src/index.ts",
+  "coreComponents": [
+    {
+      "name": "Grid",
+      "description": "Represents the 2D world with walkable/unwalkable cells",
+      "mainMethods": [
+        {"name": "constructor", "signature": "(width: number, height: number)", "description": "Creates a new grid with the specified dimensions"},
+        {"name": "isWalkable", "signature": "(x: number, y: number): boolean", "description": "Checks if a cell is walkable"},
+        {"name": "setWalkable", "signature": "(x: number, y: number, walkable: boolean): void", "description": "Sets whether a cell is walkable"},
+        {"name": "getWidth", "signature": "(): number", "description": "Returns the width of the grid"},
+        {"name": "getHeight", "signature": "(): number", "description": "Returns the height of the grid"}
+      ]
+    },
+    {
+      "name": "AStar",
+      "description": "The A* pathfinding algorithm implementation",
+      "mainMethods": [
+        {"name": "constructor", "signature": "(grid: IGrid, options?: PathfinderOptions)", "description": "Creates a new pathfinder with the specified grid and options"},
+        {"name": "findPath", "signature": "(start: GridPosition, goal: GridPosition): PathResult", "description": "Finds a path from start to goal"},
+        {"name": "setGrid", "signature": "(grid: IGrid): void", "description": "Sets a new grid for the pathfinder"},
+        {"name": "setOptions", "signature": "(options: PathfinderOptions): void", "description": "Updates the pathfinder options"}
+      ]
+    },
+    {
+      "name": "PathSmoother",
+      "description": "Smooths paths for more natural movement",
+      "mainMethods": [
+        {"name": "constructor", "signature": "(grid: IGrid)", "description": "Creates a new path smoother for the specified grid"},
+        {"name": "smoothPath", "signature": "(path: GridPosition[]): GridPosition[]", "description": "Smooths a path to remove unnecessary zigzagging"},
+        {"name": "setGrid", "signature": "(grid: IGrid): void", "description": "Sets a new grid for the smoother"}
+      ]
+    },
+    {
+      "name": "EntityController",
+      "description": "Manages AI entities with state machines",
+      "mainMethods": [
+        {"name": "constructor", "signature": "(config: EntityControllerConfig)", "description": "Creates a new entity controller with the specified configuration"},
+        {"name": "createEntity", "signature": "(data: Omit<Entity, 'currentState' | 'isMoving'>): Entity", "description": "Creates a new entity with the specified data"},
+        {"name": "update", "signature": "(deltaTime: number): void", "description": "Updates all entities"},
+        {"name": "getEntityState", "signature": "(entityId: string): { type: EntityType; currentState: string } | undefined", "description": "Gets the current state of an entity"},
+        {"name": "changeEntityState", "signature": "(entity: Entity, newState: string): void", "description": "Changes the state of an entity"},
+        {"name": "findPath", "signature": "(entityId: string): PathResult", "description": "Finds a path for an entity to its target"}
+      ]
+    },
+    {
+      "name": "createPathfinder",
+      "description": "Factory function to create a complete pathfinder system",
+      "signature": "(gridOrWidth: IGrid | number, height?: number, options?: PathfinderOptions): PathfinderSystem",
+      "returns": "An object containing pathfinder, grid, smoother, and utility functions"
+    }
+  ],
+  "interfaces": [
+    {
+      "name": "GridPosition",
+      "description": "Represents a position on the grid",
+      "properties": [
+        {"name": "x", "type": "number", "description": "X coordinate"},
+        {"name": "y", "type": "number", "description": "Y coordinate"}
+      ]
+    },
+    {
+      "name": "PathResult",
+      "description": "Result of a pathfinding operation",
+      "properties": [
+        {"name": "path", "type": "GridPosition[]", "description": "The found path (empty if no path)"},
+        {"name": "found", "type": "boolean", "description": "Whether a path was found"},
+        {"name": "explored", "type": "number", "description": "Number of nodes explored during search"},
+        {"name": "time", "type": "number", "description": "Time taken in milliseconds"},
+        {"name": "length", "type": "number", "description": "Path length"}
+      ]
+    },
+    {
+      "name": "Entity",
+      "description": "Represents an AI-controlled entity",
+      "properties": [
+        {"name": "id", "type": "string", "description": "Unique identifier"},
+        {"name": "type", "type": "EntityType", "description": "The type of entity"},
+        {"name": "position", "type": "GridPosition", "description": "Current position on the grid"},
+        {"name": "targetPosition", "type": "GridPosition", "description": "Target position to move towards"},
+        {"name": "speed", "type": "number", "description": "Movement speed"},
+        {"name": "currentState", "type": "string", "description": "Current behavior state"},
+        {"name": "isMoving", "type": "boolean", "description": "Whether the entity is currently moving"},
+        {"name": "currentPath", "type": "GridPosition[] | undefined", "description": "Current path being followed"},
+        {"name": "currentPathIndex", "type": "number | undefined", "description": "Index in the current path"},
+        {"name": "pixelPosition", "type": "{ x: number, y: number } | undefined", "description": "Position in pixel coordinates (optional)"},
+        {"name": "groupId", "type": "number | undefined", "description": "Group identifier for coordinated behaviors (optional)"},
+        {"name": "data", "type": "Record<string, any> | undefined", "description": "Custom entity data (optional)"}
+      ]
+    },
+    {
+      "name": "EntityState",
+      "description": "Definition of a state in the entity state machine",
+      "properties": [
+        {"name": "onEnter", "type": "StateEventFn | undefined", "description": "Function called when entering the state"},
+        {"name": "update", "type": "StateUpdateFn", "description": "Function called each update while in the state"},
+        {"name": "onExit", "type": "StateEventFn | undefined", "description": "Function called when exiting the state"}
+      ]
+    },
+    {
+      "name": "EntityBehavior",
+      "description": "Configuration for entity behavior",
+      "properties": [
+        {"name": "initialState", "type": "string", "description": "Initial state for the entity"},
+        {"name": "updateInterval", "type": "number | undefined", "description": "Interval between state updates in seconds"},
+        {"name": "sightDistance", "type": "number | undefined", "description": "Distance at which the entity can detect others"},
+        {"name": "states", "type": "Record<string, EntityState>", "description": "Map of state names to state definitions"}
+      ]
+    }
+  ],
+  "entityTypes": [
+    {
+      "name": "GUARD",
+      "description": "Guards patrol areas and attack intruders",
+      "states": [
+        {"name": "patrolling", "description": "Moving between patrol points"},
+        {"name": "chasing", "description": "Actively pursuing a target"},
+        {"name": "searching", "description": "Looking for a lost target"},
+        {"name": "attacking", "description": "Engaging a target"},
+        {"name": "returning", "description": "Returning to patrol route"}
+      ],
+      "useCases": ["Base security", "Territory defense", "Perimeter monitoring"]
+    },
+    {
+      "name": "HUNTER",
+      "description": "Hunters actively seek targets and adapt to target behavior",
+      "states": [
+        {"name": "hunting", "description": "Searching for targets"},
+        {"name": "stalking", "description": "Following target from a distance"},
+        {"name": "pursuing", "description": "Actively chasing target"},
+        {"name": "attacking", "description": "Engaging a target"},
+        {"name": "resting", "description": "Recovering after an engagement"}
+      ],
+      "useCases": ["Predator enemies", "Pursuit-focused adversaries", "Adaptive threats"]
+    },
+    {
+      "name": "SURVIVOR",
+      "description": "Survivors prioritize self-preservation",
+      "states": [
+        {"name": "wandering", "description": "Moving around normally"},
+        {"name": "cautious", "description": "Moving carefully after detecting threats"},
+        {"name": "relaxed", "description": "Normal state when no threats detected"},
+        {"name": "fleeing", "description": "Running away from threats"},
+        {"name": "hiding", "description": "Staying in a safe location"}
+      ],
+      "useCases": ["Civilian NPCs", "Non-combat entities", "Escort mission characters"]
+    },
+    {
+      "name": "PRESERVER",
+      "description": "Preservers use attack-retreat tactics",
+      "states": [
+        {"name": "patrolling", "description": "Moving around a territory"},
+        {"name": "charging", "description": "Moving towards a target to attack"},
+        {"name": "attacking", "description": "Engaging a target"},
+        {"name": "retreating", "description": "Moving away after an attack"},
+        {"name": "regrouping", "description": "Preparing for next attack"}
+      ],
+      "useCases": ["Tactical enemies", "Ranged attackers", "Swarm enemies"]
+    },
+    {
+      "name": "MERCHANT",
+      "description": "Merchants travel between hotspots",
+      "states": [
+        {"name": "traveling", "description": "Moving between hotspots"},
+        {"name": "trading", "description": "Stationary at a trading hotspot"},
+        {"name": "fleeing", "description": "Running from threats"},
+        {"name": "returning", "description": "Going back to a safe area"},
+        {"name": "waiting", "description": "Paused at a location"}
+      ],
+      "useCases": ["Vendors", "Quest-givers", "Traveling NPCs"]
+    }
+  ],
+  "commonPatterns": [
+    {
+      "name": "Entity Data Storage",
+      "description": "Storing custom data on entities",
+      "example": "entity.data = entity.data || {};\nentity.data.customValue = 42;"
+    },
+    {
+      "name": "State Transitions",
+      "description": "Transitioning between states in the state machine",
+      "example": "update: (entity, deltaTime, controller) => {\n  if (condition) {\n    return 'newState'; // Transition to this state\n  }\n  // No return = stay in current state\n}"
+    },
+    {
+      "name": "Path Following",
+      "description": "Making entities follow paths",
+      "example": "entity.targetPosition = {x: 50, y: 50};\ncontroller.findPath(entity.id);"
+    },
+    {
+      "name": "Grid Updates",
+      "description": "Updating the grid when the game world changes",
+      "example": "grid.setWalkable(x, y, false); // Make cell unwalkable\npathfinder.setGrid(grid); // Update pathfinder with new grid"
+    },
+    {
+      "name": "Finding Alternate Paths",
+      "description": "Handling cases where the direct path is blocked",
+      "example": "if (!grid.isWalkable(goalX, goalY)) {\n  const alternate = findNearestWalkable(goalX, goalY, 5);\n  if (alternate) {\n    // Use alternate as new goal\n  }\n}"
+    }
+  ],
+  "troubleshooting": [
+    {
+      "issue": "Entities Not Following Paths",
+      "solutions": [
+        "Check if entity.targetPosition is set correctly",
+        "Ensure controller.findPath(entity.id) is called",
+        "Verify the target position is walkable"
+      ]
+    },
+    {
+      "issue": "No Path Found to Valid Destinations",
+      "solutions": [
+        "Check if obstacles are properly marked on the grid",
+        "Verify start and goal positions are valid and walkable",
+        "Check if the destination is surrounded by obstacles",
+        "Try using findWalkablePositionNear to find alternate destinations"
+      ]
+    },
+    {
+      "issue": "Entities Stuck in Current State",
+      "solutions": [
+        "Make sure state's update function returns the new state name",
+        "Check transition conditions are being met",
+        "Verify the target state exists in the behavior definition"
+      ]
+    },
+    {
+      "issue": "Entities Moving Through Obstacles",
+      "solutions": [
+        "Ensure grid is properly synchronized with your game",
+        "Check that obstacles are marked as unwalkable",
+        "Verify collision detection is working correctly"
+      ]
+    },
+    {
+      "issue": "Poor Performance",
+      "solutions": [
+        "Increase updateInterval for entities that don't need frequent updates",
+        "Use path caching for frequently traveled routes",
+        "Limit path length or exploration for very large grids",
+        "Consider using a smaller grid scale for large game worlds"
+      ]
+    }
+  ],
+  "quickReference": {
+    "createGridAndPathfinder": "const grid = new Grid(width, height);\nconst { pathfinder, findPath } = createPathfinder(grid);",
+    "findPath": "const result = findPath(startX, startY, goalX, goalY);",
+    "createEntityController": "const entityController = createEntityController({\n  grid,\n  pathfinder,\n  behaviors: { /* ... */ }\n});",
+    "createEntity": "const entity = entityController.createEntity({\n  id: 'entity-1',\n  type: EntityType.GUARD,\n  position: { x: 10, y: 10 },\n  targetPosition: { x: 10, y: 10 },\n  speed: 2.0\n});",
+    "updateEntities": "entityController.update(deltaTime);",
+    "checkEntityState": "const state = entityController.getEntityState('entity-1');"
+  }
+}

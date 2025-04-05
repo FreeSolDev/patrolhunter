@@ -1,0 +1,676 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GamePathfinder LLM Documentation</title>
+  <meta name="description" content="Comprehensive documentation for the GamePathfinder library optimized for language models">
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    pre {
+      background-color: #f6f8fa;
+      border-radius: 6px;
+      padding: 16px;
+      overflow: auto;
+    }
+    code {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 0.9em;
+    }
+    h1, h2, h3, h4 {
+      margin-top: 1.5em;
+      margin-bottom: 0.5em;
+    }
+    .section {
+      margin-bottom: 2em;
+      padding-bottom: 1em;
+      border-bottom: 1px solid #eaecef;
+    }
+    .interface {
+      background-color: #f0f7ff;
+      padding: 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+    .entity-type {
+      background-color: #f0fff0;
+      padding: 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+    .note {
+      background-color: #fffaf0;
+      padding: 16px;
+      border-radius: 6px;
+      margin: 16px 0;
+    }
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin: 16px 0;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #f6f8fa;
+    }
+  </style>
+</head>
+<body>
+  <h1>GamePathfinder: Language Model Reference</h1>
+  
+  <div class="section">
+    <h2>Project Overview</h2>
+    <p data-purpose="overview">
+      <code>gamePathfinder</code> is a comprehensive pathfinding library designed for 2D grid-based games, providing robust A* pathfinding, entity behavior management, and path optimization. This document is structured to help language models understand how to use the library effectively in code.
+    </p>
+  </div>
+
+  <div class="section">
+    <h2>Core Components</h2>
+    <ul data-purpose="components">
+      <li><strong>Grid</strong> - Represents the 2D world with walkable/unwalkable cells</li>
+      <li><strong>AStar</strong> - The A* pathfinding algorithm implementation</li>
+      <li><strong>PathSmoother</strong> - Smooths paths for more natural movement</li>
+      <li><strong>EntityController</strong> - Manages AI entities with state machines</li>
+      <li><strong>Utilities</strong> - Helper functions for debugging and optimization</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Installation and Setup</h2>
+    <pre data-purpose="basic-setup"><code>// Import core components
+import { 
+  createPathfinder, 
+  Grid, 
+  EntityController, 
+  createEntityController,
+  EntityType
+} from 'game-pathfinder';
+
+// Create a grid (either directly or from your game data)
+const grid = new Grid(50, 50); // width, height
+
+// Set obstacles
+grid.setWalkable(10, 15, false);
+grid.setWalkable(11, 15, false);
+grid.setWalkable(12, 15, false);
+
+// Create a pathfinder with options
+const { pathfinder, findPath } = createPathfinder(grid, undefined, {
+  allowDiagonals: true,
+  cutCorners: false,
+  heuristic: 'manhattan'
+});</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Finding Paths</h2>
+    <pre data-purpose="finding-paths"><code>// Basic path finding
+const result = findPath(startX, startY, goalX, goalY);
+
+if (result.found) {
+  // Path found - use result.path
+  // result.path is an array of {x, y} positions
+  const path = result.path;
+  
+  // Access other metadata
+  console.log(`Path length: ${result.length}`);
+  console.log(`Calculation time: ${result.time}ms`);
+  console.log(`Nodes explored: ${result.explored}`);
+} else {
+  // No path found
+  console.log('No valid path to destination');
+}
+
+// Path smoothing
+const smoothedResult = findPath(startX, startY, goalX, goalY, true);</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Entity Behavior System</h2>
+    <p>The EntityController enables advanced AI with state machines for different entity types:</p>
+    <pre data-purpose="entity-behavior-setup"><code>// Create an entity controller
+const entityController = createEntityController({
+  grid,
+  pathfinder,
+  behaviors: {
+    // Define behaviors for different entity types
+    [EntityType.GUARD]: {
+      initialState: 'patrolling',
+      updateInterval: 0.5, // Seconds between state updates
+      sightDistance: 8,    // Units entity can "see"
+      states: {
+        patrolling: {
+          onEnter: (entity) => {
+            // Setup when entering state
+            entity.data = entity.data || {};
+            entity.data.patrolPoints = [
+              { x: 5, y: 5 },
+              { x: 15, y: 5 },
+              { x: 15, y: 10 },
+              { x: 5, y: 10 }
+            ];
+            entity.data.currentPatrolIndex = 0;
+            entity.targetPosition = entity.data.patrolPoints[0];
+          },
+          update: (entity, deltaTime, controller) => {
+            // State logic runs each update
+            // Can return new state name to transition
+            
+            // Check for player
+            if (canSeePlayer(entity)) {
+              return 'chasing'; // Transition to chase state
+            }
+            
+            // Continue patrol
+            if (!entity.isMoving) {
+              controller.findPath(entity.id);
+            }
+            
+            // No return = stay in current state
+          },
+          onExit: (entity) => {
+            // Cleanup when leaving state
+          }
+        },
+        // Other states...
+      }
+    },
+    // Other entity type behaviors...
+  }
+});</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Entity Types and States</h2>
+    <p>The library provides five built-in entity types, each with specific behavior patterns:</p>
+    
+    <div class="entity-type" data-entity-type="guard">
+      <h3>1. GUARD (Patrol and Attack)</h3>
+      <ul>
+        <li><strong>States</strong>: patrolling, chasing, attacking, searching</li>
+        <li><strong>Behavior</strong>: Guards follow preset patrol routes and attack intruders</li>
+        <li><strong>Use case</strong>: Base security, territory defense, perimeter monitoring</li>
+      </ul>
+    </div>
+    
+    <div class="entity-type" data-entity-type="hunter">
+      <h3>2. HUNTER (Actively Seeks Targets)</h3>
+      <ul>
+        <li><strong>States</strong>: hunting, stalking, pursuing, attacking</li>
+        <li><strong>Behavior</strong>: Hunters actively search for targets and adapt to target behavior</li>
+        <li><strong>Use case</strong>: Predator enemies, pursuit-focused adversaries</li>
+      </ul>
+    </div>
+    
+    <div class="entity-type" data-entity-type="survivor">
+      <h3>3. SURVIVOR (Self-Preservation)</h3>
+      <ul>
+        <li><strong>States</strong>: wandering, cautious, relaxed, fleeing, hiding</li>
+        <li><strong>Behavior</strong>: Survivors prioritize staying alive and avoiding threats</li>
+        <li><strong>Use case</strong>: Civilian NPCs, non-combat entities, escort mission characters</li>
+      </ul>
+    </div>
+    
+    <div class="entity-type" data-entity-type="preserver">
+      <h3>4. PRESERVER (Attack-Retreat Tactics)</h3>
+      <ul>
+        <li><strong>States</strong>: patrolling, charging, attacking, retreating, regrouping</li>
+        <li><strong>Behavior</strong>: Preservers use hit-and-run tactics with coordinated attacks</li>
+        <li><strong>Use case</strong>: Tactical enemies, ranged attackers, swarm enemies</li>
+      </ul>
+    </div>
+    
+    <div class="entity-type" data-entity-type="merchant">
+      <h3>5. MERCHANT (Travels Between Hotspots)</h3>
+      <ul>
+        <li><strong>States</strong>: traveling, trading, fleeing, returning, waiting</li>
+        <li><strong>Behavior</strong>: Merchants move between defined locations and interact with players</li>
+        <li><strong>Use case</strong>: Vendors, quest-givers, traveling NPCs</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Entity Management</h2>
+    <pre data-purpose="entity-management"><code>// Create a new entity
+const guard = entityController.createEntity({
+  id: 'guard-1',
+  type: EntityType.GUARD,
+  position: { x: 10, y: 10 },
+  targetPosition: { x: 10, y: 10 },
+  speed: 2.0
+});
+
+// Update all entities (call in your game loop)
+entityController.update(deltaTime);
+
+// Get an entity's current state
+const guardState = entityController.getEntityState('guard-1');
+console.log(`Guard is in ${guardState.currentState} state`);
+
+// Check if entity is in a specific state
+if (entityController.isInState('guard-1', 'attacking')) {
+  console.log('Guard is attacking!');
+}
+
+// Get all entity states at once
+const allStates = entityController.getEntityStates();
+
+// Change an entity's state manually
+entityController.changeEntityState(entity, 'fleeing');
+
+// Subscribe to state changes
+const unsubscribe = entityController.onStateChange((entityId, oldState, newState) => {
+  console.log(`Entity ${entityId} changed state from ${oldState} to ${newState}`);
+});
+
+// Find entities near a position
+const nearbyEntities = entityController.findEntitiesNear(
+  { x: 20, y: 20 },
+  5, // Radius
+  EntityType.GUARD // Optional type filter
+);
+
+// Find nearest entity
+const nearest = entityController.findNearestEntity(
+  { x: 20, y: 20 },
+  EntityType.MERCHANT
+);
+
+// Set a new target for an entity
+entityController.setEntityTarget('guard-1', { x: 30, y: 30 });
+
+// Check line of sight between positions
+const canSee = entityController.hasLineOfSight(
+  { x: 5, y: 5 },
+  { x: 10, y: 10 }
+);
+
+// Find a random walkable position
+const randomPos = entityController.findRandomWalkablePosition();
+
+// Find walkable position near unwalkable coordinates
+const nearbyWalkable = entityController.findWalkablePositionNear(
+  { x: 50, y: 50 },
+  3 // Search radius
+);</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Integration with Existing Games</h2>
+    <p>The library can be integrated with existing games using adapter patterns:</p>
+    <pre data-purpose="integration"><code>// Create an adapter that converts your game's grid to the pathfinder grid
+class GameGridAdapter {
+  toPathfinderGrid() {
+    const grid = new Grid(this.gameGrid.width, this.gameGrid.height);
+    
+    // Copy walkable status from your game grid
+    for (let y = 0; y < this.gameGrid.height; y++) {
+      for (let x = 0; x < this.gameGrid.width; x++) {
+        grid.setWalkable(x, y, !this.gameGrid.isObstacle(x, y));
+      }
+    }
+    
+    return grid;
+  }
+}
+
+// Create a service that handles pathfinding for your game
+class GamePathfindingService {
+  constructor(gameGrid) {
+    this.gridAdapter = new GameGridAdapter(gameGrid);
+    this.grid = this.gridAdapter.toPathfinderGrid();
+    this.pathfinder = createPathfinder(this.grid);
+    
+    // Subscribe to grid changes in your game
+    gameGrid.onChanged(() => {
+      this.grid = this.gridAdapter.toPathfinderGrid();
+      this.pathfinder.setGrid(this.grid);
+    });
+  }
+  
+  findPath(startX, startY, goalX, goalY) {
+    return this.pathfinder.findPath(startX, startY, goalX, goalY);
+  }
+}</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Performance Optimization</h2>
+    <p>The library includes several optimization features:</p>
+    <ol data-purpose="optimization">
+      <li><strong>Path caching</strong> - Recent paths are cached for faster retrieval</li>
+      <li><strong>Smart recalculation</strong> - Paths are only recalculated when necessary</li>
+      <li><strong>Configurable heuristics</strong> - Different heuristics for different scenarios:
+        <ul>
+          <li><code>manhattan</code> - Best for grid movement without diagonals</li>
+          <li><code>euclidean</code> - Best for free movement in any direction</li>
+          <li><code>chebyshev</code> - Best for grid movement with diagonals</li>
+        </ul>
+      </li>
+      <li><strong>Path smoothing</strong> - Reduces unnecessary zigzagging</li>
+      <li><strong>Update intervals</strong> - Entity states update at configurable intervals</li>
+    </ol>
+  </div>
+
+  <div class="section">
+    <h2>Common Patterns and Best Practices</h2>
+    
+    <h3>1. Entity Data Storage</h3>
+    <pre data-purpose="entity-data"><code>// Store entity-specific data in entity.data
+entity.data = entity.data || {};
+entity.data.customValue = 42;
+entity.data.targetPoints = [{x: 10, y: 10}, {x: 20, y: 20}];</code></pre>
+
+    <h3>2. State Transitions</h3>
+    <pre data-purpose="state-transitions"><code>// From within state.update, return a state name to transition
+update: (entity, deltaTime, controller) => {
+  if (condition) {
+    return 'newState'; // Transition to this state
+  }
+  // No return = stay in current state
+}</code></pre>
+
+    <h3>3. Path Following</h3>
+    <pre data-purpose="path-following"><code>// Pathfinding and following happens automatically
+// Just set the target and the system handles movement
+entity.targetPosition = {x: 50, y: 50};
+controller.findPath(entity.id);</code></pre>
+
+    <h3>4. Grid Updates</h3>
+    <pre data-purpose="grid-updates"><code>// When your game world changes, update the grid
+grid.setWalkable(x, y, false); // Make cell unwalkable
+pathfinder.setGrid(grid); // Update pathfinder with new grid</code></pre>
+
+    <h3>5. Finding Alternate Paths</h3>
+    <pre data-purpose="alternate-paths"><code>// When destination is unwalkable, find nearest valid position
+if (!grid.isWalkable(goalX, goalY)) {
+  const alternate = findNearestWalkable(goalX, goalY, 5);
+  if (alternate) {
+    // Use alternate as new goal
+  }
+}</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Error Handling</h2>
+    <pre data-purpose="error-handling"><code>// Handle path not found
+const result = findPath(startX, startY, goalX, goalY);
+if (!result.found) {
+  // Try finding a valid position nearby
+  const alternateGoal = findWalkablePositionNear({x: goalX, y: goalY}, 5);
+  if (alternateGoal) {
+    const newResult = findPath(startX, startY, alternateGoal.x, alternateGoal.y);
+    // Use new result
+  } else {
+    // No valid path possible
+    console.log('No path possible to destination or nearby');
+  }
+}
+
+// Validate grid positions
+function isValidPosition(x, y, grid) {
+  return x >= 0 && y >= 0 && x < grid.getWidth() && y < grid.getHeight();
+}
+
+// Entity creation error handling
+try {
+  const entity = entityController.createEntity({
+    id: 'entity-1',
+    type: EntityType.GUARD,
+    // ...
+  });
+} catch (error) {
+  console.error('Failed to create entity:', error.message);
+}</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Advanced Features</h2>
+    
+    <h3>Custom Heuristics</h3>
+    <pre data-purpose="custom-heuristics"><code>// Create a custom heuristic function
+function customHeuristic(dx, dy) {
+  // Your custom calculation
+  return Math.sqrt(dx * dx + dy * dy) * 1.1; // weighted euclidean
+}
+
+// Use the custom heuristic
+const customOptions = {
+  allowDiagonals: true,
+  cutCorners: false,
+  heuristic: customHeuristic
+};
+
+const { pathfinder } = createPathfinder(grid, undefined, customOptions);</code></pre>
+
+    <h3>Custom Entity Types</h3>
+    <pre data-purpose="custom-entity-types"><code>// Add a custom entity type
+enum CustomEntityType {
+  SCOUT = 'scout',
+  HEALER = 'healer'
+}
+
+// Use the custom type
+const entityController = createEntityController({
+  grid,
+  pathfinder,
+  behaviors: {
+    [CustomEntityType.SCOUT]: {
+      initialState: 'scouting',
+      // Define states...
+    }
+  }
+});</code></pre>
+
+    <h3>Debugging</h3>
+    <pre data-purpose="debugging"><code>// Visualize paths (when using Canvas rendering)
+function renderPaths(context, paths, tileSize) {
+  context.strokeStyle = 'rgba(0, 255, 0, 0.5)';
+  context.lineWidth = 2;
+  
+  for (const path of paths) {
+    if (path.length > 1) {
+      context.beginPath();
+      context.moveTo(path[0].x * tileSize, path[0].y * tileSize);
+      
+      for (let i = 1; i < path.length; i++) {
+        context.lineTo(path[i].x * tileSize, path[i].y * tileSize);
+      }
+      
+      context.stroke();
+    }
+  }
+}</code></pre>
+  </div>
+
+  <div class="section">
+    <h2>Interface Definitions</h2>
+    <p>Here are the key interfaces used in the library:</p>
+    
+    <div class="interface" data-interface="GridPosition">
+      <h3>Grid Position</h3>
+      <pre><code>interface GridPosition {
+  x: number;
+  y: number;
+}</code></pre>
+    </div>
+    
+    <div class="interface" data-interface="PathResult">
+      <h3>Path Finding Result</h3>
+      <pre><code>interface PathResult {
+  path: GridPosition[];  // The found path (empty if no path)
+  found: boolean;        // Whether a path was found
+  explored: number;      // Number of nodes explored
+  time: number;          // Time taken in milliseconds
+  length: number;        // Path length
+}</code></pre>
+    </div>
+    
+    <div class="interface" data-interface="Entity">
+      <h3>Entity</h3>
+      <pre><code>interface Entity {
+  id: string;
+  type: EntityType;
+  position: GridPosition;
+  targetPosition: GridPosition;
+  speed: number;
+  currentState: string;
+  isMoving: boolean;
+  currentPath?: GridPosition[];
+  currentPathIndex?: number;
+  pixelPosition?: {
+    x: number;
+    y: number;
+  };
+  groupId?: number;
+  data?: Record<string, any>; // Custom entity data
+}</code></pre>
+    </div>
+    
+    <div class="interface" data-interface="StateFunctions">
+      <h3>State Functions</h3>
+      <pre><code>type StateUpdateFn = (
+  entity: Entity,
+  deltaTime: number,
+  controller: EntityController
+) => string | void;
+
+type StateEventFn = (
+  entity: Entity,
+  controller: EntityController
+) => void;</code></pre>
+    </div>
+    
+    <div class="interface" data-interface="EntityState">
+      <h3>State Definition</h3>
+      <pre><code>interface EntityState {
+  onEnter?: StateEventFn;
+  update: StateUpdateFn;
+  onExit?: StateEventFn;
+}</code></pre>
+    </div>
+    
+    <div class="interface" data-interface="EntityBehavior">
+      <h3>Behavior Configuration</h3>
+      <pre><code>interface EntityBehavior {
+  initialState: string;
+  updateInterval?: number;
+  sightDistance?: number;
+  states: Record<string, EntityState>;
+}</code></pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Troubleshooting Common Issues</h2>
+    <table data-purpose="troubleshooting">
+      <tr>
+        <th>Issue</th>
+        <th>Solutions</th>
+      </tr>
+      <tr>
+        <td>Entities Not Following Paths</td>
+        <td>
+          <ul>
+            <li>Check if <code>entity.targetPosition</code> is set correctly</li>
+            <li>Ensure <code>controller.findPath(entity.id)</code> is called</li>
+            <li>Verify the target position is walkable</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td>No Path Found to Valid Destinations</td>
+        <td>
+          <ul>
+            <li>Check if obstacles are properly marked on the grid</li>
+            <li>Verify start and goal positions are valid and walkable</li>
+            <li>Check if the destination is surrounded by obstacles</li>
+            <li>Try using <code>findWalkablePositionNear</code> to find alternate destinations</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td>Entities Stuck in Current State</td>
+        <td>
+          <ul>
+            <li>Make sure state's <code>update</code> function returns the new state name</li>
+            <li>Check transition conditions are being met</li>
+            <li>Verify the target state exists in the behavior definition</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td>Entities Moving Through Obstacles</td>
+        <td>
+          <ul>
+            <li>Ensure grid is properly synchronized with your game</li>
+            <li>Check that obstacles are marked as unwalkable</li>
+            <li>Verify collision detection is working correctly</li>
+          </ul>
+        </td>
+      </tr>
+      <tr>
+        <td>Poor Performance</td>
+        <td>
+          <ul>
+            <li>Increase <code>updateInterval</code> for entities that don't need frequent updates</li>
+            <li>Use path caching for frequently traveled routes</li>
+            <li>Limit path length or exploration for very large grids</li>
+            <li>Consider using a smaller grid scale for large game worlds</li>
+          </ul>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Quick Reference</h2>
+    <pre data-purpose="quick-reference"><code>// Create grid and pathfinder
+const grid = new Grid(width, height);
+const { pathfinder, findPath } = createPathfinder(grid);
+
+// Find path
+const result = findPath(startX, startY, goalX, goalY);
+
+// Entity controller
+const entityController = createEntityController({
+  grid,
+  pathfinder,
+  behaviors: { /* ... */ }
+});
+
+// Entity creation
+const entity = entityController.createEntity({
+  id: 'entity-1',
+  type: EntityType.GUARD,
+  position: { x: 10, y: 10 },
+  targetPosition: { x: 10, y: 10 },
+  speed: 2.0
+});
+
+// Update entities (in game loop)
+entityController.update(deltaTime);
+
+// Check states
+const state = entityController.getEntityState('entity-1');</code></pre>
+  </div>
+
+  <div class="note">
+    <h2>License</h2>
+    <p>This library is distributed under the MIT license.</p>
+  </div>
+</body>
+</html>
