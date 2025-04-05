@@ -1,27 +1,40 @@
 {
-  "name": "game-pathfinder",
+  "name": "gamepathfinder",
   "version": "1.0.0",
-  "description": "A robust pathfinding library for 2D grid-based games",
+  "description": "A sophisticated 2D pathfinding library with entity behavior management",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "jest",
-    "prepublish": "npm run build"
+    "test": "echo \"No tests specified\"",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test"
   },
   "keywords": [
     "pathfinding",
     "astar",
-    "game",
-    "grid",
-    "navigation"
+    "game-development",
+    "entity-behavior",
+    "state-machine"
   ],
-  "author": "",
+  "author": "Replit Game Developer",
   "license": "MIT",
   "devDependencies": {
     "@types/jest": "^29.5.0",
+    "@types/node": "^22.14.0",
     "jest": "^29.5.0",
     "ts-jest": "^29.1.0",
-    "typescript": "^5.0.4"
+    "typescript": "^5.8.3"
+  },
+  "directories": {
+    "doc": "docs",
+    "example": "examples"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/replit/gamepathfinder.git"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

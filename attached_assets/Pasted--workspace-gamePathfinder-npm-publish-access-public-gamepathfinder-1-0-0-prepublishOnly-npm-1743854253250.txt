@@ -1,0 +1,56 @@
+~/workspace/gamePathfinder$ npm publish --access=public
+
+> gamepathfinder@1.0.0 prepublishOnly
+> npm test
+
+
+> gamepathfinder@1.0.0 test
+> echo "No tests specified"
+
+No tests specified
+
+> gamepathfinder@1.0.0 prepare
+> npm run build
+
+
+> gamepathfinder@1.0.0 build
+> tsc
+
+../node_modules/@types/css-font-loading-module/index.d.ts:44:9 - error TS2717: Subsequent property declarations must have the same type.  Property 'onloading' must be of type '((this: FontFaceSet, ev: FontFaceSetLoadEvent) => any) | null', but here has type '((this: FontFaceSet, event: Event) => any) | null'.
+
+44         onloading: ((this: FontFaceSet, event: Event) => any) | null;
+           ~~~~~~~~~
+
+  node_modules/typescript/lib/lib.dom.d.ts:9219:5
+    9219     onloading: ((this: FontFaceSet, ev: FontFaceSetLoadEvent) => any) | null;
+             ~~~~~~~~~
+    'onloading' was also declared here.
+
+../node_modules/@types/css-font-loading-module/index.d.ts:45:9 - error TS2717: Subsequent property declarations must have the same type.  Property 'onloadingdone' must be of type '((this: FontFaceSet, ev: FontFaceSetLoadEvent) => any) | null', but here has type '((this: FontFaceSet, event: Event) => any) | null'.
+
+45         onloadingdone: ((this: FontFaceSet, event: Event) => any) | null;
+           ~~~~~~~~~~~~~
+
+  node_modules/typescript/lib/lib.dom.d.ts:9221:5
+    9221     onloadingdone: ((this: FontFaceSet, ev: FontFaceSetLoadEvent) => any) | null;
+             ~~~~~~~~~~~~~
+    'onloadingdone' was also declared here.
+
+../node_modules/@types/css-font-loading-module/index.d.ts:46:9 - error TS2717: Subsequent property declarations must have the same type.  Property 'onloadingerror' must be of type '((this: FontFaceSet, ev: FontFaceSetLoadEvent) => any) | null', but here has type '((this: FontFaceSet, event: Event) => any) | null'.
+
+46         onloadingerror: ((this: FontFaceSet, event: Event) => any) | null;
+           ~~~~~~~~~~~~~~
+
+  node_modules/typescript/lib/lib.dom.d.ts:9223:5
+    9223     onloadingerror: ((this: FontFaceSet, ev: FontFaceSetLoadEvent) => any) | null;
+             ~~~~~~~~~~~~~~
+    'onloadingerror' was also declared here.
+
+
+Found 3 errors in the same file, starting at: ../node_modules/@types/css-font-loading-module/index.d.ts:44
+
+npm error code 2
+npm error path /home/runner/workspace/gamePathfinder
+npm error command failed
+npm error command sh -c npm run build
+npm error A complete log of this run can be found in: /home/runner/.npm/_logs/2025-04-05T11_56_42_576Z-debug-0.log
